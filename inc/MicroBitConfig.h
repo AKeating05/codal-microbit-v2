@@ -258,6 +258,11 @@
     #define MICROBIT_BLE_DFU_SERVICE                1
 #endif
 
+// Enable/Disable partial flashing over radio
+#ifndef MICROBIT_RADIO_FLASHING_SERVICE
+        #define MICROBIT_RADIO_FLASHING_SERVICE     1
+#endif
+
 // Enable/Disable BLE Service: MicroBitDeviceInformationService
 // This enables the standard BLE device information service.
 // Set '1' to enable.
@@ -319,6 +324,13 @@
 // 1: Feature enabled. Triple tap of reset button enters Bluetooth pairing mode.
 #ifndef MICROBIT_TRIPLE_RESET_TO_PAIR
     #define MICROBIT_TRIPLE_RESET_TO_PAIR                 1
+#endif
+
+// Defines default behaviour of quadruple-tap-reset-to-transmit feature.
+// 0: Feature disabled
+// 1: Feature enabled. Quadruple tap of reset button transmits flash over radio.
+#ifndef MICROBIT_4_RESET_TO_TRANSMIT
+    #define MICROBIT_4_RESET_TO_TRANSMIT                 1
 #endif
 
 // Defines default behaviour of any stored user data when the micro:bit is reflashed.

@@ -86,6 +86,10 @@ DEALINGS IN THE SOFTWARE.
 #include "MicroBitUtilityService.h"
 #endif
 
+#if CONFIG_ENABLED(MICROBIT_RADIO_FLASHING_SERVICE)
+#include "MicroBitRadioFlashingService.h"
+#endif
+
 #include "MicroBitStorage.h"
 
 
