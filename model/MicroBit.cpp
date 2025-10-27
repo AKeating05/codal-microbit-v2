@@ -297,50 +297,6 @@ int MicroBit::init()
     while (NRF_CLOCK->EVENTS_HFCLKSTARTED == 0);
 #endif
 
-#if CONFIG_ENABLED(MICROBIT_RADIO_FLASHING_SERVICE)
-    int i = 0;
-    KeyValuePair* RebootMode = storage.get("RebootMode");
-    KeyValuePair* flashIncomplete = storage.get("flashIncomplete");
-    //static MicroBitRadioFlashingService radioFlasher(*this);
-    uint8_t x = 0; uint8_t y = 0;
-    bool quad_reset = 0;
-#endif
-
-#if CONFIG_ENABLED(MICROBIT_4_RESET_TO_TRANSMIT)
-    quad_reset = (microbit_no_init_memory_region.resetClickCount == 4);
-#endif
-
-    while (((quad_reset || (buttonA.isPressed() && buttonB.isPressed())) && i<25) || RebootMode != NULL || flashIncomplete != NULL)
-    {
-        display.image.setPixelValue(x,y,255);
-        sleep(quad_reset ? 10 : 20);
-        i++; x++;
-
-        // Gradually fill screen
-        if(x == 5){
-          y++; x = 0;
-        }
-
-        if (i == 25 || RebootMode != NULL)
-        {
-            // Remove KV if it exists
-            if(RebootMode != NULL){
-                storage.remove("RebootMode");
-            }
-            delete RebootMode;
-            delete flashIncomplete;
-            microbit_no_init_memory_region.resetClickCount = 0;
-
-            // Start the BLE stack, if it isn't already running.
-            //bleManager.init( ManagedString( microbit_friendly_name()), getSerial(), messageBus, storage, true);
-
-            // start radio manager
-
-        }
-    }
-
-
-
     // Deschedule for a little while, just to allow for any components that finialise initialisation
     // as a background task, and to allow the power mamanger to repsonse to background events from the KL27
     // before any user code begins running.
