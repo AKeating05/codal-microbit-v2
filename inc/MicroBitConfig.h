@@ -168,7 +168,7 @@
 // Enable/Disable BLE pairing mode mode at power up.
 // Set '1' to enable.
 #ifndef MICROBIT_BLE_PAIRING_MODE
-    #define MICROBIT_BLE_PAIRING_MODE               1
+    #define MICROBIT_BLE_PAIRING_MODE               0
 #endif
 
 // Enable/Disable the use of private resolvable addresses.

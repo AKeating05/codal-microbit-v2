@@ -1,0 +1,104 @@
+/*
+The MIT License (MIT)
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+*/
+
+#include "MicroBitConfig.h"
+#include "MicroBitRadio.h"
+#include "MicroBitRadioFlashSender.h"
+
+
+
+MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit uBit)
+{
+    this.uBit = uBit;
+    this.uBit.init();
+    this.uBit.radio.enable();
+    this.seq_num = 0;
+}
+
+void MicroBitRadioFlashSender::sendUserProgram()
+{
+    extern "C"
+    {
+        extern uint32_t __codal_end__;
+    }
+
+    uint32_t user_start = (uint32_t) __codal_end__;
+    uint32_t user_end = MICROBIT_TOP_OF_FLASH;
+    uint32_t user_size = user_end - user_start;
+
+    uint32_t npackets;
+
+    
+    if(!(user_size % 16))
+        npackets = user_size/16
+    else
+        npackets = (user_size/16) + 1
+
+    uint32_t *currentAddr = (uint32_t)&__codal_end__
+    
+
+    for(this.seq_num; i<npackets; this.seq_num++)
+    {
+        uint8_t packet[32];
+        
+        // first byte is id (sender or receiver) 255 for sender
+        packet[0] = 255;
+
+        // sequence number
+        packet[1] = (this.seq_num >> 8) & 0xFF;
+        packet[2] = this.seq_num & 0xFF;
+        
+        // next 8 bytes: current address in memory read from
+        uint8_t *ptr = &currentAddr;
+        for(int i = 3;i<11;i++)
+        {
+            packet[i] = ptr;
+            ptr++;
+        }
+
+
+        memcpy(&packet[16],currentAddr, 16);
+        // checksum
+        uint16_t sum = 0;
+        for(int j = 16; j<32; j++)
+        {
+            sum+= packet[j];
+        }
+        packet[11] = (uint8_t)(sum >> 8) & 0xFF;
+        packet[12] = (uint8_t)(sum & 0xFF);
+
+        // padding
+        packet[13], packet[14], packet[15] = 0;
+
+        PacketBuffer b(packet,32);
+        this.uBit.radio.datagram.send(b);
+
+
+        currentAddr += 16;
+    }
+
+    
+
+
+
+    
+}

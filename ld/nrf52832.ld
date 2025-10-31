@@ -88,6 +88,9 @@ SECTIONS
         KEEP(*(.eh_frame*))
     } > FLASH
 
+    /*End of CODAL Marker */
+    __codal_end__= .;
+
     .ARM.extab :
     {
         *(.ARM.extab* .gnu.linkonce.armextab.*)
