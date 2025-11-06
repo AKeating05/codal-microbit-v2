@@ -29,11 +29,15 @@ namespace codal
 
 class MicroBitRadioFlashSender
 {
-    public:
-    MicroBitRadioFlashSender(MicroBit uBit);
+    private:
     MicroBit uBit;
     uint32_t seq_num;
-    sendUserProgram();
+
+    public:
+    MicroBitRadioFlashSender(MicroBit uBit);
+    void sendUserProgram();
+
+    uint32_t getSeqNum();
 
 }
 

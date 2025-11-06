@@ -27,11 +27,12 @@ DEALINGS IN THE SOFTWARE.
 
 
 MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit uBit)
+    : uBit(uBit), seq_num(0)
 {
-    this.uBit = uBit;
-    this.uBit.init();
-    this.uBit.radio.enable();
-    this.seq_num = 0;
+    
+    uBit.init();
+    uBit.radio.enable();
+    sendUserProgram();
 }
 
 void MicroBitRadioFlashSender::sendUserProgram()
@@ -41,64 +42,66 @@ void MicroBitRadioFlashSender::sendUserProgram()
         extern uint32_t __codal_end__;
     }
 
-    uint32_t user_start = (uint32_t) __codal_end__;
+    uint8_t *currentAddr = (uint8_t*)&__codal_end__;
+    uint32_t user_start = (uint32_t)&__codal_end__;
     uint32_t user_end = MICROBIT_TOP_OF_FLASH;
     uint32_t user_size = user_end - user_start;
 
     uint32_t npackets;
-
     
     if(!(user_size % 16))
-        npackets = user_size/16
+        npackets = user_size/16;
     else
-        npackets = (user_size/16) + 1
+        npackets = (user_size/16) + 1;
 
-    uint32_t *currentAddr = (uint32_t)&__codal_end__
     
-
-    for(this.seq_num; i<npackets; this.seq_num++)
+    
+    // Packet Structure:
+    // 0            1    2    3   4    5   6    7     8    --   15
+    // +--------------------------------------------------------+
+    // | Sndr/Recvr | Seq Num | Flash Addr | Checksum | Padding |
+    // +--------------------------------------------------------+
+    // |                        Data                            |
+    // +--------------------------------------------------------+
+    // 16                                                       31
+    
+    for(uint32_t i = 0; i<npackets; i++)
     {
-        uint8_t packet[32];
+        uint8_t packet[32] = {0};
         
         // first byte is id (sender or receiver) 255 for sender
         packet[0] = 255;
 
         // sequence number
-        packet[1] = (this.seq_num >> 8) & 0xFF;
-        packet[2] = this.seq_num & 0xFF;
+        packet[1] = (i >> 8) & 0xFF;
+        packet[2] = i & 0xFF;
         
         // next 8 bytes: current address in memory read from
-        uint8_t *ptr = &currentAddr;
-        for(int i = 3;i<11;i++)
-        {
-            packet[i] = ptr;
-            ptr++;
-        }
+        uint32 addr = (uint32_t)currentAddr;
+        memcpy(&packet[3], &addr, sizeof(addr));
 
-
+        // data
         memcpy(&packet[16],currentAddr, 16);
+
         // checksum
         uint16_t sum = 0;
-        for(int j = 16; j<32; j++)
+        for(uint32_t j = 9; j<25; j++)
         {
             sum+= packet[j];
         }
-        packet[11] = (uint8_t)(sum >> 8) & 0xFF;
-        packet[12] = (uint8_t)(sum & 0xFF);
+        packet[7] = (uint8_t)(sum >> 8) & 0xFF;
+        packet[8] = (uint8_t)(sum & 0xFF);
 
-        // padding
-        packet[13], packet[14], packet[15] = 0;
 
         PacketBuffer b(packet,32);
         this.uBit.radio.datagram.send(b);
 
-
         currentAddr += 16;
+        uBit.sleep(10);
     }
+}
 
-    
-
-
-
-    
+uint32_t MicroBitRadioFlashSender::getSeqNum()
+{
+    return seq_num;
 }
