@@ -26,10 +26,33 @@ DEALINGS IN THE SOFTWARE.
 
 
 
-MicroBitRadioFlashSender::MicroBitRadioFlashReceiver(MicroBit uBit)
+MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
+    : uBit(uBit)
 {
-    this.uBit = uBit;
-    this.uBit.init();
-    this.uBit.radio.enable();
+    uBit.init();
+    uBit.radio.enable();
+
+    while(1)
+    {
+        PacketBuffer p uBit.radio.datagram.recv();
+        handlePacket(p);
+        uBit.sleep(1000);
+    }
 }
 
+void handlePacket(PacketBuffer packet)
+{
+    // Packet Structure:
+    // 0            1    2    3   4    5   6    7     8    --   15
+    // +--------------------------------------------------------+
+    // | Sndr/Recvr | Seq Num | Flash Addr | Checksum | Padding |
+    // +--------------------------------------------------------+
+    // |                        Data                            |
+    // +--------------------------------------------------------+
+    // 16                                                       31
+
+    uint8_t id = packet[0];
+    uint32_t seq = packet[1] | packet[2] << 8;
+
+    uBit.display.scroll(seq);
+}

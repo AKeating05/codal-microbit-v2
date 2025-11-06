@@ -26,7 +26,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 
-MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit uBit)
+MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit &uBit)
     : uBit(uBit), seq_num(0)
 {
     

@@ -30,13 +30,11 @@ namespace codal
 class MicroBitRadioFlashReceiver
 {
     private:
-    MicroBit uBit;
+    MicroBit &uBit;
 
     public:
-    MicroBitRadioFlashReceiver(MicroBit uBit);
-    
-    
-
+    MicroBitRadioFlashReceiver(MicroBit &uBit);
+    void handlePacket(PacketBuffer packet);
 }
 
 } //namespace

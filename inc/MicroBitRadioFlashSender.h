@@ -34,7 +34,7 @@ class MicroBitRadioFlashSender
     uint32_t seq_num;
 
     public:
-    MicroBitRadioFlashSender(MicroBit uBit);
+    MicroBitRadioFlashSender(MicroBit &uBit);
     void sendUserProgram();
 
     uint32_t getSeqNum();
