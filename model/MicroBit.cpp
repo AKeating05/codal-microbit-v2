@@ -297,10 +297,26 @@ int MicroBit::init()
     while (NRF_CLOCK->EVENTS_HFCLKSTARTED == 0);
 #endif
 
+#if CONFIG_ENABLED(MICROBIT_RADIO_REFLASH_ENABLED)
+    bool triple_reset_reflash = (microbit_no_init_memory_region.resetClickCount == 3);
+    if (triple_reset_reflash)
+    {
+        microbit_no_init_memory_region.resetClickCount = 0;
+        display.scroll("REFLASH");
+
+        #if CONFIG_ENABLED(MICROBIT_ROLE_SENDER)
+            MicroBitRadioFlashSender sender(*this);
+        #elif CONFIG_ENABLED(MICROBIT_ROLE_RECEIVER)
+            MicroBitRadioFlashReceiver receiver(*this);
+        #endif
+
+        while(1)
+            fiber_sleep(100);
+    }
+#endif
     // Deschedule for a little while, just to allow for any components that finialise initialisation
     // as a background task, and to allow the power mamanger to repsonse to background events from the KL27
     // before any user code begins running.
-    
     sleep(10);
     return DEVICE_OK;
 }

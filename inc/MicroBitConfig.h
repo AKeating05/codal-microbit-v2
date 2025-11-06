@@ -293,6 +293,16 @@
     #define MICROBIT_RADIO_MAX_PACKET_SIZE          32
 #endif
 
+// Enable/Disable partial flashing over radio
+// BLE must be disabled if radio flashing is enabled
+#ifndef MICROBIT_RADIO_REFLASH_ENABLED
+    #define MICROBIT_RADIO_REFLASH_ENABLED  1
+#endif
+
+// Hard code sender/receiver role into the microbit
+#define MICROBIT_ROLE_SENDER    1
+#define MICROBIT_ROLE_RECEIVER  0
+
 // Versioning options.
 // We use semantic versioning (http://semver.org/) to identify different versions of the micro:bit runtime.
 // If this isn't available, it can be defined manually as a configuration option.
