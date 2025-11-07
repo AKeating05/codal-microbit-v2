@@ -23,24 +23,28 @@ DEALINGS IN THE SOFTWARE.
 #include "MicroBitConfig.h"
 #include "MicroBitRadio.h"
 #include "MicroBitRadioFlashReceiver.h"
+#include "MicroBit.h"
 
 
 
 MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
     : uBit(uBit)
 {
-    uBit.init();
     uBit.radio.enable();
-
+    uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, this, &MicroBitRadioFlashReceiver::onData);
     while(1)
     {
-        PacketBuffer p uBit.radio.datagram.recv();
-        handlePacket(p);
-        uBit.sleep(1000);
+        uBit.sleep(500);
     }
 }
 
-void handlePacket(PacketBuffer packet)
+void MicroBitRadioFlashReceiver::onData(MicroBitEvent e)
+{
+    PacketBuffer p = uBit.radio.datagram.recv();
+    MicroBitRadioFlashReceiver::handlePacket(p);
+}
+
+void MicroBitRadioFlashReceiver::handlePacket(PacketBuffer packet)
 {
     // Packet Structure:
     // 0            1    2    3   4    5   6    7     8    --   15
@@ -54,5 +58,5 @@ void handlePacket(PacketBuffer packet)
     uint8_t id = packet[0];
     uint32_t seq = packet[1] | packet[2] << 8;
 
-    uBit.display.scroll(seq);
+    uBit.display.print((int)seq+1);
 }

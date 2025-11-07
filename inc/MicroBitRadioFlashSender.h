@@ -22,6 +22,7 @@ DEALINGS IN THE SOFTWARE.
 
 #include "MicroBitConfig.h"
 #include "MicroBitRadio.h"
+#include "MicroBit.h"
 
 
 namespace codal
@@ -39,6 +40,6 @@ class MicroBitRadioFlashSender
 
     uint32_t getSeqNum();
 
-}
+};
 
 } //namespace

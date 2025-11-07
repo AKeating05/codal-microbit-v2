@@ -28,6 +28,8 @@ DEALINGS IN THE SOFTWARE.
 #include "MicroBitDevice.h"
 #include "MicroBitMemoryMap.h"
 #include "CodalDmesg.h"
+#include "MicroBitRadioFlashSender.h"
+#include "MicroBitRadioFlashReceiver.h"
 
 using namespace codal;
 
@@ -298,20 +300,20 @@ int MicroBit::init()
 #endif
 
 #if CONFIG_ENABLED(MICROBIT_RADIO_REFLASH_ENABLED)
-    bool triple_reset_reflash = (microbit_no_init_memory_region.resetClickCount == 3);
-    if (triple_reset_reflash)
+    if (microbit_no_init_memory_region.resetClickCount == 3)
     {
         microbit_no_init_memory_region.resetClickCount = 0;
         display.scroll("REFLASH");
+        
 
+
+        
         #if CONFIG_ENABLED(MICROBIT_ROLE_SENDER)
             MicroBitRadioFlashSender sender(*this);
+            sender.sendUserProgram();
         #elif CONFIG_ENABLED(MICROBIT_ROLE_RECEIVER)
             MicroBitRadioFlashReceiver receiver(*this);
         #endif
-
-        while(1)
-            fiber_sleep(100);
     }
 #endif
     // Deschedule for a little while, just to allow for any components that finialise initialisation

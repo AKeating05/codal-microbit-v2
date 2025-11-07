@@ -23,27 +23,23 @@ DEALINGS IN THE SOFTWARE.
 #include "MicroBitConfig.h"
 #include "MicroBitRadio.h"
 #include "MicroBitRadioFlashSender.h"
+#include "MicroBit.h"
 
-
+extern "C"
+{
+    extern uint32_t __etext;
+}
 
 MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit &uBit)
     : uBit(uBit), seq_num(0)
 {
-    
-    uBit.init();
     uBit.radio.enable();
-    sendUserProgram();
 }
 
 void MicroBitRadioFlashSender::sendUserProgram()
 {
-    extern "C"
-    {
-        extern uint32_t __codal_end__;
-    }
-
-    uint8_t *currentAddr = (uint8_t*)&__codal_end__;
-    uint32_t user_start = (uint32_t)&__codal_end__;
+    uint8_t *currentAddr = (uint8_t*)&__etext;
+    uint32_t user_start = (uint32_t)&__etext;
     uint32_t user_end = MICROBIT_TOP_OF_FLASH;
     uint32_t user_size = user_end - user_start;
 
@@ -77,7 +73,7 @@ void MicroBitRadioFlashSender::sendUserProgram()
         packet[2] = i & 0xFF;
         
         // next 8 bytes: current address in memory read from
-        uint32 addr = (uint32_t)currentAddr;
+        uint32_t addr = (uint32_t)currentAddr;
         memcpy(&packet[3], &addr, sizeof(addr));
 
         // data
@@ -85,7 +81,7 @@ void MicroBitRadioFlashSender::sendUserProgram()
 
         // checksum
         uint16_t sum = 0;
-        for(uint32_t j = 9; j<25; j++)
+        for(uint32_t j = 16; j<31; j++)
         {
             sum+= packet[j];
         }
@@ -94,10 +90,11 @@ void MicroBitRadioFlashSender::sendUserProgram()
 
 
         PacketBuffer b(packet,32);
-        this.uBit.radio.datagram.send(b);
+        uBit.radio.datagram.send(b);
 
         currentAddr += 16;
-        uBit.sleep(10);
+        uBit.display.print((int)i);
+        uBit.sleep(500);
     }
 }
 

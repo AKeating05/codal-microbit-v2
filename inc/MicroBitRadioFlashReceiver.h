@@ -22,6 +22,7 @@ DEALINGS IN THE SOFTWARE.
 
 #include "MicroBitConfig.h"
 #include "MicroBitRadio.h"
+#include "MicroBit.h"
 
 
 namespace codal
@@ -35,6 +36,7 @@ class MicroBitRadioFlashReceiver
     public:
     MicroBitRadioFlashReceiver(MicroBit &uBit);
     void handlePacket(PacketBuffer packet);
-}
+    void onData(MicroBitEvent e);
+};
 
 } //namespace
