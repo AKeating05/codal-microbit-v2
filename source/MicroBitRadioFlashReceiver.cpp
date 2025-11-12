@@ -25,23 +25,33 @@ DEALINGS IN THE SOFTWARE.
 #include "MicroBitRadioFlashReceiver.h"
 #include "MicroBit.h"
 
-
+bool rec = false;
 
 MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
     : uBit(uBit)
 {
     uBit.radio.enable();
-    uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, this, &MicroBitRadioFlashReceiver::onData);
+    uBit.radio.setGroup(0);
+    uBit.radio.setTransmitPower(6);
+    uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, this, &MicroBitRadioFlashReceiver::onData, MESSAGE_BUS_LISTENER_IMMEDIATE);
     while(1)
     {
+        if(rec)
+        {
+            
+            PacketBuffer p = uBit.radio.datagram.recv();
+            handlePacket(p);
+            rec = false; 
+        }
         uBit.sleep(500);
     }
 }
 
 void MicroBitRadioFlashReceiver::onData(MicroBitEvent e)
 {
-    PacketBuffer p = uBit.radio.datagram.recv();
-    MicroBitRadioFlashReceiver::handlePacket(p);
+    // PacketBuffer p = uBit.radio.datagram.recv();
+    // handlePacket(p);
+    rec = true;
 }
 
 void MicroBitRadioFlashReceiver::handlePacket(PacketBuffer packet)
@@ -56,7 +66,10 @@ void MicroBitRadioFlashReceiver::handlePacket(PacketBuffer packet)
     // 16                                                       31
 
     uint8_t id = packet[0];
-    uint32_t seq = packet[1] | packet[2] << 8;
-
-    uBit.display.print((int)seq+1);
+    uint32_t seq = ((uint32_t)packet[1]) | ((uint32_t)packet[2] << 8);
+    uBit.serial.printf("id=%d seq=%lu [1]=%d [2]=%d\n", id, seq, packet[1], packet[2]);
+    // uBit.display.print((int)seq);
+    uBit.display.image.setPixelValue(0,0,255);
+    uBit.sleep(10);
+    uBit.display.image.setPixelValue(0,0,0);
 }

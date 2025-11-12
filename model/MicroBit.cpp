@@ -299,19 +299,17 @@ int MicroBit::init()
     while (NRF_CLOCK->EVENTS_HFCLKSTARTED == 0);
 #endif
 
-#if CONFIG_ENABLED(MICROBIT_RADIO_REFLASH_ENABLED)
+#if MICROBIT_RADIO_REFLASH_ENABLED
     if (microbit_no_init_memory_region.resetClickCount == 3)
     {
         microbit_no_init_memory_region.resetClickCount = 0;
-        display.scroll("REFLASH");
         
-
-
         
-        #if CONFIG_ENABLED(MICROBIT_ROLE_SENDER)
+        #if MICROBIT_ROLE_SENDER
+            display.scroll("RFS");
             MicroBitRadioFlashSender sender(*this);
-            sender.sendUserProgram();
-        #elif CONFIG_ENABLED(MICROBIT_ROLE_RECEIVER)
+        #elif MICROBIT_ROLE_RECEIVER
+            display.scroll("RFR");
             MicroBitRadioFlashReceiver receiver(*this);
         #endif
     }
