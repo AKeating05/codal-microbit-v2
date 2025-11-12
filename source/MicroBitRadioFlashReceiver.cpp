@@ -49,8 +49,6 @@ MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
 
 void MicroBitRadioFlashReceiver::onData(MicroBitEvent e)
 {
-    // PacketBuffer p = uBit.radio.datagram.recv();
-    // handlePacket(p);
     rec = true;
 }
 
@@ -66,10 +64,20 @@ void MicroBitRadioFlashReceiver::handlePacket(PacketBuffer packet)
     // 16                                                       31
 
     uint8_t id = packet[0];
-    uint32_t seq = ((uint32_t)packet[1]) | ((uint32_t)packet[2] << 8);
-    uBit.serial.printf("id=%d seq=%lu [1]=%d [2]=%d\n", id, seq, packet[1], packet[2]);
+    uint16_t seq;
+    if(packet[1] == 0)
+        seq = (uint16_t)packet[2];
+    else
+        seq = ((uint16_t)packet[1]<<8) | ((uint16_t)packet[2]);
+    // uBit.serial.printf("id=%u seq=%u [1]=%u [2]=%u\n", (unsigned)id, (unsigned)seq, (unsigned)packet[1], (unsigned)packet[2]);
+    uint16_t addr;
+    memcpy(&addr, &packet[3], sizeof(addr));
+    ManagedString out = 
+        ManagedString("id=") + ManagedString(id) 
+        + ManagedString(" seq=") + ManagedString(seq)
+        + ManagedString(" addr=") + ManagedString(addr) + "\r\n";
+    uBit.serial.send(out);
+    // uBit.serial.printf("seq=%u addr=0x%08lx\n", (unsigned)seq, (unsigned long)addr);
     // uBit.display.print((int)seq);
-    uBit.display.image.setPixelValue(0,0,255);
-    uBit.sleep(10);
-    uBit.display.image.setPixelValue(0,0,0);
+
 }

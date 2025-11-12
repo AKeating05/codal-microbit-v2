@@ -46,7 +46,7 @@ void MicroBitRadioFlashSender::sendUserProgram()
     uint32_t user_end = MICROBIT_TOP_OF_FLASH;
     uint32_t user_size = user_end - user_start;
 
-    uint32_t npackets;
+    uint16_t npackets;
     
     if(!(user_size % 16))
         npackets = user_size/16;
@@ -63,8 +63,8 @@ void MicroBitRadioFlashSender::sendUserProgram()
     // |                        Data                            |
     // +--------------------------------------------------------+
     // 16                                                       31
-    
-    for(uint32_t i = 0; i<npackets; i++)
+
+    for(uint16_t i = 0; i<npackets; i++)
     {
         uint8_t packet[32] = {0};
         
@@ -93,10 +93,12 @@ void MicroBitRadioFlashSender::sendUserProgram()
 
 
         PacketBuffer b(packet,32);
+        ManagedString out = ManagedString(packet[2]);
+        uBit.display.print(out);
         uBit.radio.datagram.send(b);
         
         currentAddr += 16;
-        uBit.display.print(packet[2]);
+        
         // uBit.serial.printf("sending [0]=%d [1]=%d [2]=%d\r\n", packet[0], packet[1], packet[2]);
         // uBit.serial.send("\r\n");
         uBit.sleep(1000);
