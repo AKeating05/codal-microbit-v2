@@ -92,16 +92,16 @@ void MicroBitRadioFlashSender::sendUserProgram()
         packet[8] = (uint8_t)(sum & 0xFF);
 
 
-        PacketBuffer b(packet,32);
-        ManagedString out = ManagedString(packet[2]);
-        uBit.display.print(out);
-        uBit.radio.datagram.send(b);
+        // PacketBuffer b(packet,32);
+        // ManagedString out = ManagedString(packet[2]);
+        // uBit.display.print(out);
+        // uBit.radio.datagram.send(b);
         
         currentAddr += 16;
         
         // uBit.serial.printf("sending [0]=%d [1]=%d [2]=%d\r\n", packet[0], packet[1], packet[2]);
         // uBit.serial.send("\r\n");
-        uBit.sleep(1000);
+        uBit.sleep(200);
     }
 }
 
