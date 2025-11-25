@@ -20,7 +20,6 @@ MEMORY
 {
   SD (rx) : ORIGIN = 0x00000, LENGTH = 0x1C000
   FLASH (rx) : ORIGIN = 0x1C000, LENGTH = 0x64000
-  TESTPAGE (rx) : ORIGIN = 0x34000, LENGTH = 0x1000
   RAM (rwx) :  ORIGIN = 0x20002ef8, LENGTH = 0xd108
 }
 
@@ -146,13 +145,6 @@ SECTIONS
     } > RAM
 
     __edata = .;
-
-    .testpage :
-    {
-        __testpage_start__ = .;
-        KEEP(*(.testpage))
-        __testpage_end__= .;
-    } > TESTPAGE
 
     .noinit :
     {

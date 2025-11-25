@@ -27,7 +27,9 @@ DEALINGS IN THE SOFTWARE.
 
 extern "C"
 {
-    extern uint32_t __etext;
+    // extern uint32_t __etext;
+    extern uint32_t __testpage_start__;
+    extern uint32_t __testpage_end__;
 }
 
 MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit &uBit)
@@ -41,22 +43,27 @@ MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit &uBit)
 
 void MicroBitRadioFlashSender::sendUserProgram()
 {
-    uint8_t *currentAddr = (uint8_t*)&__etext;
-    uint32_t user_start = (uint32_t)&__etext;
-    uint32_t user_end = MICROBIT_TOP_OF_FLASH;
+    // uint8_t *currentAddr = (uint8_t*)&__etext;
+    // uint32_t user_start = (uint32_t)&__etext;
+    // uint32_t user_end = MICROBIT_TOP_OF_FLASH;
+    // uint32_t user_size = user_end - user_start;
+
+    uint8_t *currentAddr = (uint8_t*)&__testpage_start__;
+    uint32_t user_start = (uint32_t)&__testpage_start__;
+    uint32_t user_end = (uint32_t)&__testpage_end__;
     uint32_t user_size = user_end - user_start;
 
-    uint16_t npackets;
+    uint16_t npackets = 4;
     
-    if(!(user_size % 16))
-        npackets = user_size/16;
-    else
-        npackets = (user_size/16) + 1;
+    // if(!(user_size % 1008))
+    //     npackets = user_size/1008;
+    // else
+    //     npackets = (user_size/1008) + 1;
 
     
     
     // Packet Structure:
-    // 0            1    2    3   4    5   6    7     8    --   15
+    // 0            1    2    3  4  5  6   7    8     9   --   15
     // +--------------------------------------------------------+
     // | Sndr/Recvr | Seq Num | Flash Addr | Checksum | Padding |
     // +--------------------------------------------------------+
@@ -66,7 +73,7 @@ void MicroBitRadioFlashSender::sendUserProgram()
 
     for(uint16_t i = 0; i<npackets; i++)
     {
-        uint8_t packet[32] = {0};
+        uint8_t packet[1024] = {0};
         
         // first byte is id (sender or receiver) 255 for sender
         packet[0] = 255;
@@ -75,16 +82,17 @@ void MicroBitRadioFlashSender::sendUserProgram()
         packet[1] = (i >> 8) & 0xFF;
         packet[2] = i & 0xFF;
         
-        // next 8 bytes: current address in memory read from
+        // next 4 bytes: current address in memory read from
         uint32_t addr = (uint32_t)currentAddr;
         memcpy(&packet[3], &addr, sizeof(addr));
 
         // data
-        memcpy(&packet[16],currentAddr, 16);
+        memcpy(&packet[16],currentAddr, 1008);
+
 
         // checksum
         uint16_t sum = 0;
-        for(uint32_t j = 16; j<31; j++)
+        for(uint32_t j = 16; j<1024; j++)
         {
             sum+= packet[j];
         }
@@ -92,15 +100,14 @@ void MicroBitRadioFlashSender::sendUserProgram()
         packet[8] = (uint8_t)(sum & 0xFF);
 
 
-        // PacketBuffer b(packet,32);
+        PacketBuffer b(packet,1024);
         // ManagedString out = ManagedString(packet[2]);
         // uBit.display.print(out);
-        // uBit.radio.datagram.send(b);
+        // uBit.serial.send(out);
+        uBit.radio.datagram.send(b);
         
-        currentAddr += 16;
+        currentAddr += 1008;
         
-        // uBit.serial.printf("sending [0]=%d [1]=%d [2]=%d\r\n", packet[0], packet[1], packet[2]);
-        // uBit.serial.send("\r\n");
         uBit.sleep(200);
     }
 }

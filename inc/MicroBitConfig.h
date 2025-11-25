@@ -290,7 +290,7 @@
 // TODO: Update the range here once issue codal-microbit-v2#383 has been resolved
 // https://github.com/lancaster-university/codal-microbit-v2/issues/383
 #ifndef MICROBIT_RADIO_MAX_PACKET_SIZE
-    #define MICROBIT_RADIO_MAX_PACKET_SIZE          32
+    #define MICROBIT_RADIO_MAX_PACKET_SIZE          1024
 #endif
 
 // Enable/Disable partial flashing over radio
@@ -300,8 +300,8 @@
 #endif
 
 // Hard code sender/receiver role into the microbit
-#define MICROBIT_ROLE_SENDER    1
-#define MICROBIT_ROLE_RECEIVER  0
+#define MICROBIT_ROLE_SENDER    0
+#define MICROBIT_ROLE_RECEIVER  1
 
 // Versioning options.
 // We use semantic versioning (http://semver.org/) to identify different versions of the micro:bit runtime.

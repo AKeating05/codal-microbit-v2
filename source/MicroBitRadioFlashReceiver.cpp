@@ -24,8 +24,12 @@ DEALINGS IN THE SOFTWARE.
 #include "MicroBitRadio.h"
 #include "MicroBitRadioFlashReceiver.h"
 #include "MicroBit.h"
+#include "MicroBitFlash.h"
 
 bool rec = false;
+uint8_t pageBuffer[4096];
+uint8_t received[4] = {0};
+uint32_t pageAddr;
 
 MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
     : uBit(uBit)
@@ -69,11 +73,26 @@ void MicroBitRadioFlashReceiver::handlePacket(PacketBuffer packet)
         seq = (uint16_t)packet[2];
     else
         seq = ((uint16_t)packet[1]<<8) | ((uint16_t)packet[2]);
-    uint16_t addr;
+    uint32_t addr;
     memcpy(&addr, &packet[3], sizeof(addr));
+
+    if(seq==0)
+    {
+        pageAddr = addr;
+    }
+    
+    memcpy(&pageBuffer[seq*1008],&packet[16],1008);
+    received[seq] = 1;
+    
     ManagedString out = 
         ManagedString("id=") + ManagedString(id) 
         + ManagedString(" seq=") + ManagedString(seq)
-        + ManagedString(" addr=") + ManagedString(addr) + "\r\n";
+        + ManagedString(" addr=") + ManagedString((int)addr);
+        // + ManagedString(" data=") + ManagedString((int)data) + "\r\n";
     uBit.serial.send(out);
+
+    if(received[0] && received[1] && received[2] && received[3])
+    {
+        
+    }
 }
