@@ -1,9 +1,10 @@
-#include "MicroBit.h"
-MicroBit uBit;
+extern "C" void testpage(void) __attribute__((section(".testpage"), used));
 
-__attribute__((section(".testpage")))
-int main()
+extern "C" void testpage(void)
 {
-    uBit.init();
-    uBit.display.scroll("FLASHED");
+    volatile int x = 0;
+    while(1)
+    {
+        x++;
+    }
 }

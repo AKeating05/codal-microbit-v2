@@ -53,7 +53,7 @@ void MicroBitRadioFlashSender::sendUserProgram()
     uint32_t user_end = (uint32_t)&__testpage_end__;
     uint32_t user_size = user_end - user_start;
 
-    uint16_t npackets = 4;
+    uint16_t npackets = (user_size + 1007)/1008;
     
     // if(!(user_size % 1008))
     //     npackets = user_size/1008;
@@ -81,18 +81,19 @@ void MicroBitRadioFlashSender::sendUserProgram()
         // sequence number
         packet[1] = (i >> 8) & 0xFF;
         packet[2] = i & 0xFF;
-        
-        // next 4 bytes: current address in memory read from
-        uint32_t addr = (uint32_t)currentAddr;
-        memcpy(&packet[3], &addr, sizeof(addr));
 
-        // data
-        memcpy(&packet[16],currentAddr, 1008);
+        uint32_t offset = (uint32_t)currentAddr - user_start;
+        memcpy(&packet[3], &offset, 4);
+
+        uint32_t rem = user_size - (i*1008);
+        uint32_t chunk =  rem > 1008 ? 1008 : rem;
+        
+        memcpy(&packet[16],currentAddr, chunk);
 
 
         // checksum
         uint16_t sum = 0;
-        for(uint32_t j = 16; j<1024; j++)
+        for(uint32_t j = 16; j<16+chunk; j++)
         {
             sum+= packet[j];
         }
@@ -106,7 +107,7 @@ void MicroBitRadioFlashSender::sendUserProgram()
         // uBit.serial.send(out);
         uBit.radio.datagram.send(b);
         
-        currentAddr += 1008;
+        currentAddr += chunk;
         
         uBit.sleep(200);
     }
