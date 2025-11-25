@@ -3,6 +3,7 @@ MEMORY
   MBR (rx) : ORIGIN = 0x0000, LENGTH = 0x1000
   SD (rx) : ORIGIN = 0x1000, LENGTH = 0x1B000
   FLASH (rx) : ORIGIN = 0x1C000, LENGTH = 0x77000 - 0x1C000
+  TESTPAGE (rx) : ORIGIN = 0x76C00, LENGTH = 0x1000
   BOOTLOADER (rx) : ORIGIN = 0x77000, LENGTH = 0x7E000 - 0x77000
   SETTINGS (rx) : ORIGIN = 0x7E000, LENGTH = 0x2000
   UICR (rx) : ORIGIN = 0x10001014, LENGTH = 0x8
@@ -42,6 +43,14 @@ SECTIONS
     {
         KEEP(*(.settings))
     } > SETTINGS
+
+    . = ALIGN(4);
+    .testpage :
+    {
+        PROVIDE(__testpage_start__ = .);
+        KEEP(*(.testpage*))
+        PROVIDE(__testpage_end__ = .);
+    } > TESTPAGE
     
     .text :
     {

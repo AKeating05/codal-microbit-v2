@@ -1,10 +1,11 @@
-extern "C" void testpage(void) __attribute__((section(".testpage"), used));
-
-extern "C" void testpage(void)
+__attribute__((section(".smallprog"))) const uint8_t small_program[4096] = 
 {
-    volatile int x = 0;
-    while(1)
+    void test()
     {
-        x++;
+        volatile int x = 0;
+        while(1)
+        {
+            x++;
+        }
     }
-}
+};
