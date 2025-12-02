@@ -47,11 +47,12 @@ SECTIONS
     . = ALIGN(4);
     .testpage :
     {
-        PROVIDE(__testpage_start__ = .);
-        KEEP(*(.testpage*))
-        PROVIDE(__testpage_end__ = .);
+        __testpage_start__ = .;
+        KEEP(*(.testpage))
+        KEEP(*(.testpage.*))
+        __testpage_end__ = .;
     } > TESTPAGE
-    
+
     .text :
     {
         KEEP(*(.isr_vector))

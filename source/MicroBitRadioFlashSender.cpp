@@ -27,10 +27,11 @@ DEALINGS IN THE SOFTWARE.
 
 extern "C"
 {
-    // extern uint32_t __etext;
-    extern uint32_t __testpage_start__;
-    extern uint32_t __testpage_end__;
+    extern uint8_t __testpage_start__;
+    extern uint8_t __testpage_end__;
 }
+
+
 
 MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit &uBit)
     : uBit(uBit), seq_num(0)
@@ -38,27 +39,20 @@ MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit &uBit)
     uBit.radio.enable();
     uBit.radio.setGroup(0);
     uBit.radio.setTransmitPower(6);
-    sendUserProgram();
+    sendUserProgram(uBit);
+    // uBit.display.scroll("RF");
 }
 
-void MicroBitRadioFlashSender::sendUserProgram()
+void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
 {
-    // uint8_t *currentAddr = (uint8_t*)&__etext;
-    // uint32_t user_start = (uint32_t)&__etext;
-    // uint32_t user_end = MICROBIT_TOP_OF_FLASH;
-    // uint32_t user_size = user_end - user_start;
 
-    uint8_t *currentAddr = (uint8_t*)&__testpage_start__;
+    uint8_t *currentAddr = &__testpage_start__;
     uint32_t user_start = (uint32_t)&__testpage_start__;
     uint32_t user_end = (uint32_t)&__testpage_end__;
     uint32_t user_size = user_end - user_start;
-
-    uint16_t npackets = (user_size + 1007)/1008;
     
-    // if(!(user_size % 1008))
-    //     npackets = user_size/1008;
-    // else
-    //     npackets = (user_size/1008) + 1;
+    uint32_t payloadSize = 256 - 16;
+    uint16_t npackets = (user_size + payloadSize-1)/payloadSize;
 
     
     
@@ -73,7 +67,7 @@ void MicroBitRadioFlashSender::sendUserProgram()
 
     for(uint16_t i = 0; i<npackets; i++)
     {
-        uint8_t packet[1024] = {0};
+        uint8_t packet[payloadSize+16] = {0};
         
         // first byte is id (sender or receiver) 255 for sender
         packet[0] = 255;
@@ -85,8 +79,8 @@ void MicroBitRadioFlashSender::sendUserProgram()
         uint32_t offset = (uint32_t)currentAddr - user_start;
         memcpy(&packet[3], &offset, 4);
 
-        uint32_t rem = user_size - (i*1008);
-        uint32_t chunk =  rem > 1008 ? 1008 : rem;
+        uint32_t rem = user_size - (i*payloadSize);
+        uint32_t chunk =  rem > payloadSize ? payloadSize : rem;
         
         memcpy(&packet[16],currentAddr, chunk);
 
@@ -101,7 +95,7 @@ void MicroBitRadioFlashSender::sendUserProgram()
         packet[8] = (uint8_t)(sum & 0xFF);
 
 
-        PacketBuffer b(packet,1024);
+        PacketBuffer b(packet,payloadSize+16);
         // ManagedString out = ManagedString(packet[2]);
         // uBit.display.print(out);
         // uBit.serial.send(out);
@@ -109,7 +103,7 @@ void MicroBitRadioFlashSender::sendUserProgram()
         
         currentAddr += chunk;
         
-        uBit.sleep(200);
+        uBit.sleep(2000);
     }
 }
 

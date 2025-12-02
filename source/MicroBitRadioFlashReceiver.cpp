@@ -87,12 +87,13 @@ void MicroBitRadioFlashReceiver::handlePacket(PacketBuffer packet)
     ManagedString out = 
         ManagedString("id=") + ManagedString(id) 
         + ManagedString(" seq=") + ManagedString(seq)
-        + ManagedString(" addr=") + ManagedString((int)addr);
+        + ManagedString(" addr=") + ManagedString((int)addr) + "\r\n";
         // + ManagedString(" data=") + ManagedString((int)data) + "\r\n";
     uBit.serial.send(out);
 
     if(received[0] && received[1] && received[2] && received[3])
     {
-        
+        ManagedString message = ManagedString("FLASHING");
+        uBit.serial.send(message);
     }
 }
