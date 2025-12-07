@@ -25,11 +25,19 @@ DEALINGS IN THE SOFTWARE.
 #include "MicroBitRadioFlashReceiver.h"
 #include "MicroBit.h"
 #include "MicroBitFlash.h"
+#include "NRF52FlashManager.h"
 
 bool rec = false;
-uint8_t pageBuffer[4096];
-uint8_t received[4] = {0};
-uint32_t pageAddr;
+uint8_t pageBuffer[4096] = {0};
+uint32_t pageIndex = 0;
+uint16_t packetsReceived = 0;
+uint8_t isMissingPackets = 0;
+
+extern "C"
+{
+    extern uint8_t __user_start__;
+    extern uint8_t __user_end__;
+}
 
 MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
     : uBit(uBit)
@@ -59,41 +67,42 @@ void MicroBitRadioFlashReceiver::onData(MicroBitEvent e)
 void MicroBitRadioFlashReceiver::handlePacket(PacketBuffer packet)
 {
     // Packet Structure:
-    // 0            1    2    3   4    5   6    7     8    --   15
-    // +--------------------------------------------------------+
-    // | Sndr/Recvr | Seq Num | Flash Addr | Checksum | Padding |
-    // +--------------------------------------------------------+
-    // |                        Data                            |
-    // +--------------------------------------------------------+
-    // 16                                                       31
+    // 0            1    2    3             4               5              7          9         15
+    // +----------------------------------------------------------------------------------------+
+    // | Sndr/Recvr | Seq Num | Page number | Total packets | Payload size | Checksum | Padding |
+    // +----------------------------------------------------------------------------------------+
+    // |                                        Data                                            |
+    // +----------------------------------------------------------------------------------------+
+    // 16                                                                                       31
 
     uint8_t id = packet[0];
-    uint16_t seq;
-    if(packet[1] == 0)
-        seq = (uint16_t)packet[2];
-    else
-        seq = ((uint16_t)packet[1]<<8) | ((uint16_t)packet[2]);
-    uint32_t addr;
-    memcpy(&addr, &packet[3], sizeof(addr));
+    uint16_t seq = ((uint16_t)packet[1]<<8) | ((uint16_t)packet[2]);
 
-    if(seq==0)
+    uint8_t pageNum = packet[3];
+    uint8_t totalPackets = packet[4];
+    uint8_t payloadSize = packet[5];
+
+    // checksum
+    uint16_t recChecksum = ((uint16_t)packet[7]<<8) | ((uint16_t)packet[8]);
+    uint16_t sum = 0;
+    for(uint32_t j = 16; j<payloadSize; j++)
     {
-        pageAddr = addr;
+        sum+= packet[j];
     }
-    
-    memcpy(&pageBuffer[seq*1008],&packet[16],1008);
-    received[seq] = 1;
-    
-    ManagedString out = 
-        ManagedString("id=") + ManagedString(id) 
-        + ManagedString(" seq=") + ManagedString(seq)
-        + ManagedString(" addr=") + ManagedString((int)addr) + "\r\n";
-        // + ManagedString(" data=") + ManagedString((int)data) + "\r\n";
-    uBit.serial.send(out);
 
-    if(received[0] && received[1] && received[2] && received[3])
+    if(sum!=recChecksum)
     {
-        ManagedString message = ManagedString("FLASHING");
-        uBit.serial.send(message);
+        isMissingPackets = 1;
+    }
+    else
+    {
+        memcpy(&pageBuffer[pageIndex], &packet[16],payloadSize);
+        pageIndex += payloadSize;
+    }
+
+    packetsReceived++;
+    if(packetsReceived==totalPackets && !isMissingPackets)
+    {
+        // reflash
     }
 }

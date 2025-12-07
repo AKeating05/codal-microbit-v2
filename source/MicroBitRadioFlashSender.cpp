@@ -27,8 +27,8 @@ DEALINGS IN THE SOFTWARE.
 
 extern "C"
 {
-    extern uint8_t __testpage_start__;
-    extern uint8_t __testpage_end__;
+    extern uint8_t __user_start__;
+    extern uint8_t __user_end__;
 }
 
 
@@ -46,26 +46,28 @@ MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit &uBit)
 void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
 {
 
-    uint8_t *currentAddr = &__testpage_start__;
-    uint32_t user_start = (uint32_t)&__testpage_start__;
-    uint32_t user_end = (uint32_t)&__testpage_end__;
+    uint8_t *currentAddr = &__user_start__;
+    uint32_t user_start = (uint32_t)&__user_start__;
+    uint32_t user_end = (uint32_t)&__user_end__;
     uint32_t user_size = user_end - user_start;
     
-    uint32_t payloadSize = 256 - 16;
-    uint16_t npackets = (user_size + payloadSize-1)/payloadSize;
+    uint16_t payloadSize = 1024 - 16;
+    uint8_t npackets = (user_size + payloadSize)/payloadSize;
+    
 
     
     
     // Packet Structure:
-    // 0            1    2    3  4  5  6   7    8     9   --   15
-    // +--------------------------------------------------------+
-    // | Sndr/Recvr | Seq Num | Flash Addr | Checksum | Padding |
-    // +--------------------------------------------------------+
-    // |                        Data                            |
-    // +--------------------------------------------------------+
-    // 16                                                       31
+    // 0            1    2    3             4               5              7          9         15
+    // +----------------------------------------------------------------------------------------+
+    // | Sndr/Recvr | Seq Num | Page number | Total packets | Payload size | Checksum | Padding |
+    // +----------------------------------------------------------------------------------------+
+    // |                                        Data                                            |
+    // +----------------------------------------------------------------------------------------+
+    // 16                                                                                       31
 
-    for(uint16_t i = 0; i<npackets; i++)
+    uint8_t pageNum = 1;
+    for(uint8_t i = 0; i<npackets; i++)
     {
         uint8_t packet[payloadSize+16] = {0};
         
@@ -76,18 +78,27 @@ void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
         packet[1] = (i >> 8) & 0xFF;
         packet[2] = i & 0xFF;
 
-        uint32_t offset = (uint32_t)currentAddr - user_start;
-        memcpy(&packet[3], &offset, 4);
+        packet[3] = pageNum;
+        packet[4] = npackets;
 
-        uint32_t rem = user_size - (i*payloadSize);
-        uint32_t chunk =  rem > payloadSize ? payloadSize : rem;
-        
-        memcpy(&packet[16],currentAddr, chunk);
+        packet[5] = ((user_end-currentAddr) >> 8) & 0xFF;
+        packet[6] = (user_end-currentAddr) & 0xFF;
 
+        // check size of data to be read, if less than size of packet payload read only that size, else read the payload number of bytes
+        if((user_end-currentAddr)<payloadSize)
+        {
+            memcpy(&packet[16],currentAddr,(user_end-currentAddr));
+            currentAddr+=(user_end-currentAddr);
+        }
+        else
+        {
+            memcpy(&packet[16],currentAddr,payloadSize);
+            currentAddr+=payloadSize;
+        }
 
         // checksum
         uint16_t sum = 0;
-        for(uint32_t j = 16; j<16+chunk; j++)
+        for(uint32_t j = 16; j<payloadSize; j++)
         {
             sum+= packet[j];
         }
@@ -101,7 +112,7 @@ void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
         // uBit.serial.send(out);
         uBit.radio.datagram.send(b);
         
-        currentAddr += chunk;
+        pageNum += (npackets % 4) ? 1:0; 
         
         uBit.sleep(2000);
     }
