@@ -24,7 +24,6 @@ DEALINGS IN THE SOFTWARE.
 #include "MicroBitRadio.h"
 #include "MicroBitRadioFlashReceiver.h"
 #include "MicroBit.h"
-#include "MicroBitFlash.h"
 #include "NRF52FlashManager.h"
 
 bool rec = false;
@@ -80,12 +79,12 @@ void MicroBitRadioFlashReceiver::handlePacket(PacketBuffer packet)
 
     uint8_t pageNum = packet[3];
     uint8_t totalPackets = packet[4];
-    uint8_t payloadSize = packet[5];
+    uint16_t payloadSize = ((uint16_t)packet[5]<<8) | ((uint16_t)packet[6]);
 
     // checksum
     uint16_t recChecksum = ((uint16_t)packet[7]<<8) | ((uint16_t)packet[8]);
     uint16_t sum = 0;
-    for(uint32_t j = 16; j<payloadSize; j++)
+    for(uint32_t j = 16; j<64; j++)
     {
         sum+= packet[j];
     }
@@ -99,10 +98,18 @@ void MicroBitRadioFlashReceiver::handlePacket(PacketBuffer packet)
         memcpy(&pageBuffer[pageIndex], &packet[16],payloadSize);
         pageIndex += payloadSize;
     }
+    ManagedString out = ManagedString("id: ") + ManagedString((int) id) + ManagedString("\n")
+        + ManagedString("seq: ") + ManagedString((int)seq) + ManagedString("\n")
+        + ManagedString("page#: ") + ManagedString((int)pageNum) + ManagedString("\n")
+        + ManagedString("tpackets: ") + ManagedString((int)totalPackets) + ManagedString("\n")
+        + ManagedString("payloadSize: ") + ManagedString((int)payloadSize) + ManagedString("\n")
+        + ManagedString("Rchecksum: ") + ManagedString((int)recChecksum) + ManagedString("\n")
+        + ManagedString("checksum: ") + ManagedString((int)sum) + ManagedString("\n");
+        uBit.serial.send(out);
 
     packetsReceived++;
     if(packetsReceived==totalPackets && !isMissingPackets)
     {
-        // reflash
+        uBit.serial.send(ManagedString("FLASHING"));
     }
 }

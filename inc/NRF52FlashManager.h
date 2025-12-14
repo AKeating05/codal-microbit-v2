@@ -37,11 +37,12 @@ namespace codal
 class NRF52FlashManager : public NVMController
 {
     private:
+        
+
+    public:
         uint32_t startAddress;
         uint32_t pageCount;
         uint32_t pageSize;
-
-    public:
         /**
          * Constructor.
          * Create a software abstraction of an NRF52FlashManager.
