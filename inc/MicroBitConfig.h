@@ -300,8 +300,8 @@
 #endif
 
 // Hard code sender/receiver role into the microbit
-#define MICROBIT_ROLE_SENDER    1
-#define MICROBIT_ROLE_RECEIVER  0
+#define MICROBIT_ROLE_SENDER    0
+#define MICROBIT_ROLE_RECEIVER  1
 
 // Versioning options.
 // We use semantic versioning (http://semver.org/) to identify different versions of the micro:bit runtime.

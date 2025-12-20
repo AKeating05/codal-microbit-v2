@@ -51,20 +51,20 @@ void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
     uint32_t user_end = (uint32_t)&__user_end__;
     uint32_t user_size = user_end - user_start;
     
-    uint16_t payloadSize = 64 - 16;
+    uint16_t payloadSize = 32 - 16;
     uint8_t npackets = (user_size + payloadSize - 1)/payloadSize;
     
 
     
     
     // Packet Structure:
-    // 0            1    2    3             4               5              7          9         15
-    // +----------------------------------------------------------------------------------------+
-    // | Sndr/Recvr | Seq Num | Page number | Total packets | Payload size | Checksum | Padding |
-    // +----------------------------------------------------------------------------------------+
-    // |                                        Data                                            |
-    // +----------------------------------------------------------------------------------------+
-    // 16                                                                                       31
+    // 0            1    2    3             4               5         6         7       8      9    10   11        15
+    // +------------------------------------------------------------------------------------------------------------+
+    // | Sndr/Recvr | Seq Num | Page number | Total packets | Remaining # bytes | Payload size | Checksum | Padding |
+    // +------------------------------------------------------------------------------------------------------------+
+    // |                                                       Data                                                 |
+    // +------------------------------------------------------------------------------------------------------------+
+    // 16                                                                                                          31
 
     uint8_t pageNum = 1;
     for(uint8_t i = 0; i<npackets; i++)
@@ -78,11 +78,17 @@ void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
         packet[1] = (i >> 8) & 0xFF;
         packet[2] = i & 0xFF;
 
+        // page number and number of packets being sent
         packet[3] = pageNum;
         packet[4] = npackets;
 
+        // remaining bytes to send
         packet[5] = ((user_end-(uint32_t)currentAddr) >> 8) & 0xFF;
         packet[6] = (user_end-(uint32_t)currentAddr) & 0xFF;
+
+        // payload size
+        packet[7] = (uint8_t)(payloadSize >> 8) & 0xFF;
+        packet[8] = (uint8_t)(payloadSize & 0xFF);
 
         // check size of data to be read, if less than size of packet payload read only that size, else read the payload number of bytes
         if((user_end-(uint32_t)currentAddr)<payloadSize)
@@ -102,8 +108,8 @@ void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
         {
             sum+= packet[j];
         }
-        packet[7] = (uint8_t)(sum >> 8) & 0xFF;
-        packet[8] = (uint8_t)(sum & 0xFF);
+        packet[9] = (uint8_t)(sum >> 8) & 0xFF;
+        packet[10] = (uint8_t)(sum & 0xFF);
 
 
         PacketBuffer b(packet,payloadSize+16);
@@ -111,13 +117,15 @@ void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
         + ManagedString("seq: ") + ManagedString((int)((uint16_t)packet[1]<<8) | ((uint16_t)packet[2])) + ManagedString("\n")
         + ManagedString("page#: ") + ManagedString((int)packet[3]) + ManagedString("\n")
         + ManagedString("tpackets: ") + ManagedString((int)packet[4]) + ManagedString("\n")
-        + ManagedString("payloadSize: ") + ManagedString((int)((uint16_t)packet[5]<<8) | ((uint16_t)packet[6])) + ManagedString("\n")
-        + ManagedString("checksum: ") + ManagedString((int)((uint16_t)packet[7]<<8) | ((uint16_t)packet[8])) + ManagedString("\n");
+        + ManagedString("remaining: ") + ManagedString((int)((uint16_t)packet[5]<<8) | ((uint16_t)packet[6])) + ManagedString("\n")
+        + ManagedString("payloadSize: ") + ManagedString((int)((uint16_t)packet[7]<<8) | ((uint16_t)packet[8])) + ManagedString("\n")
+        + ManagedString("checksum: ") + ManagedString((int)((uint16_t)packet[9]<<8) | ((uint16_t)packet[10])) + ManagedString("\n") + ManagedString("\n");
         uBit.serial.send(out);
         
         uBit.radio.datagram.send(b);
         
-        pageNum += !(npackets % 4) ? 1:0; 
+        // increment page number every 4 packets
+        pageNum += !((i + 1) % 4) ? 1:0; 
         
         uBit.sleep(200);
     }

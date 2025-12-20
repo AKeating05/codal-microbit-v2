@@ -27,6 +27,7 @@ DEALINGS IN THE SOFTWARE.
 #include "NRF52FlashManager.h"
 
 bool rec = false;
+bool flashComplete = false;
 uint8_t pageBuffer[4096] = {0};
 uint32_t pageIndex = 0;
 uint16_t packetsReceived = 0;
@@ -45,7 +46,7 @@ MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
     uBit.radio.setGroup(0);
     uBit.radio.setTransmitPower(6);
     uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, this, &MicroBitRadioFlashReceiver::onData, MESSAGE_BUS_LISTENER_IMMEDIATE);
-    while(1)
+    while(!flashComplete)
     {
         if(rec)
         {
@@ -66,25 +67,25 @@ void MicroBitRadioFlashReceiver::onData(MicroBitEvent e)
 void MicroBitRadioFlashReceiver::handlePacket(PacketBuffer packet)
 {
     // Packet Structure:
-    // 0            1    2    3             4               5              7          9         15
-    // +----------------------------------------------------------------------------------------+
-    // | Sndr/Recvr | Seq Num | Page number | Total packets | Payload size | Checksum | Padding |
-    // +----------------------------------------------------------------------------------------+
-    // |                                        Data                                            |
-    // +----------------------------------------------------------------------------------------+
-    // 16                                                                                       31
+    // 0            1    2    3             4               5         6         7       8      9    10   11        15
+    // +------------------------------------------------------------------------------------------------------------+
+    // | Sndr/Recvr | Seq Num | Page number | Total packets | Remaining # bytes | Payload size | Checksum | Padding |
+    // +------------------------------------------------------------------------------------------------------------+
+    // |                                                       Data                                                 |
+    // +------------------------------------------------------------------------------------------------------------+
+    // 16                                                                                                          31
 
     uint8_t id = packet[0];
     uint16_t seq = ((uint16_t)packet[1]<<8) | ((uint16_t)packet[2]);
-
     uint8_t pageNum = packet[3];
     uint8_t totalPackets = packet[4];
-    uint16_t payloadSize = ((uint16_t)packet[5]<<8) | ((uint16_t)packet[6]);
+    uint16_t remaining = ((uint16_t)packet[5]<<8) | ((uint16_t)packet[6]);
+    uint16_t payloadSize = ((uint16_t)packet[7]<<8) | ((uint16_t)packet[8]);
 
     // checksum
-    uint16_t recChecksum = ((uint16_t)packet[7]<<8) | ((uint16_t)packet[8]);
+    uint16_t recChecksum = ((uint16_t)packet[9]<<8) | ((uint16_t)packet[10]);
     uint16_t sum = 0;
-    for(uint32_t j = 16; j<64; j++)
+    for(uint32_t j = 16; j<payloadSize + 16; j++)
     {
         sum+= packet[j];
     }
@@ -102,14 +103,18 @@ void MicroBitRadioFlashReceiver::handlePacket(PacketBuffer packet)
         + ManagedString("seq: ") + ManagedString((int)seq) + ManagedString("\n")
         + ManagedString("page#: ") + ManagedString((int)pageNum) + ManagedString("\n")
         + ManagedString("tpackets: ") + ManagedString((int)totalPackets) + ManagedString("\n")
+        + ManagedString("remaining: ") + ManagedString((int)remaining) + ManagedString("\n")
         + ManagedString("payloadSize: ") + ManagedString((int)payloadSize) + ManagedString("\n")
         + ManagedString("Rchecksum: ") + ManagedString((int)recChecksum) + ManagedString("\n")
-        + ManagedString("checksum: ") + ManagedString((int)sum) + ManagedString("\n");
+        + ManagedString("checksum: ") + ManagedString((int)sum) + ManagedString("\n") + ManagedString("\n");
         uBit.serial.send(out);
 
     packetsReceived++;
     if(packetsReceived==totalPackets && !isMissingPackets)
     {
-        uBit.serial.send(ManagedString("FLASHING"));
+        NRF52FlashManager flasher(0x00076C00, 1, 4096);
+        flasher.erase(0x00076C00);
+        flasher.write(0x00076C00, (uint32_t *)pageBuffer, 1024);
+        flashComplete = true;
     }
 }
