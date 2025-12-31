@@ -20,18 +20,11 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 */
 
-#include "MicroBitConfig.h"
-#include "MicroBitRadio.h"
 #include "MicroBitRadioFlashReceiver.h"
-#include "MicroBit.h"
-#include "NRF52FlashManager.h"
-
-bool rec = false;
-bool flashComplete = false;
-uint8_t pageBuffer[4096] = {0};
-uint32_t pageIndex = 0;
-uint16_t packetsReceived = 0;
-uint8_t isMissingPackets = 0;
+#include "nrf_nvmc.h"
+#include "nrf.h"
+#include "nrf_sdm.h"
+#include <stdio.h>
 
 extern "C"
 {
@@ -39,29 +32,61 @@ extern "C"
     extern uint8_t __user_end__;
 }
 
-MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
-    : uBit(uBit)
+volatile bool packetsComplete = false;
+volatile bool flashComplete = false;
+volatile bool packetEvent = false;
+uint8_t pageBuffer[4096];
+
+
+void flashUserProgram(uint32_t flash_addr, uint8_t *pageBuffer)
 {
+    uint32_t page = flash_addr / 4096;
+    uint32_t *flash_ptr = (uint32_t *)flash_addr;
+    uint32_t *data = (uint32_t *)pageBuffer;
+
+    while (sd_flash_page_erase(page) == NRF_ERROR_BUSY)
+        __WFE();
+
+    for (uint32_t offset = 0; offset < 1024; offset += 256)
+    {
+        flashComplete = false;
+
+        while (sd_flash_write(flash_ptr + offset, data + offset, 256) == NRF_ERROR_BUSY)
+            __WFE();
+    }
+}
+
+
+MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
+    : uBit(uBit),
+    pageIndex(0),
+    // totalPackets(0),
+    packetsReceived(0),
+    isMissingPackets(false)
+
+{
+    memset(pageBuffer, 0, sizeof(pageBuffer));
     uBit.radio.enable();
     uBit.radio.setGroup(0);
     uBit.radio.setTransmitPower(6);
     uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, this, &MicroBitRadioFlashReceiver::onData, MESSAGE_BUS_LISTENER_IMMEDIATE);
-    while(!flashComplete)
+    while(!packetsComplete)
     {
-        if(rec)
+        if(packetEvent)
         {
             
             PacketBuffer p = uBit.radio.datagram.recv();
             handlePacket(p);
-            rec = false; 
+            packetEvent = false; 
         }
         uBit.sleep(200);
     }
 }
 
-void MicroBitRadioFlashReceiver::onData(MicroBitEvent e)
+
+void MicroBitRadioFlashReceiver::onData(MicroBitEvent)
 {
-    rec = true;
+    packetEvent = true;
 }
 
 void MicroBitRadioFlashReceiver::handlePacket(PacketBuffer packet)
@@ -92,7 +117,7 @@ void MicroBitRadioFlashReceiver::handlePacket(PacketBuffer packet)
 
     if(sum!=recChecksum)
     {
-        isMissingPackets = 1;
+        isMissingPackets = true;
     }
     else
     {
@@ -107,14 +132,19 @@ void MicroBitRadioFlashReceiver::handlePacket(PacketBuffer packet)
         + ManagedString("payloadSize: ") + ManagedString((int)payloadSize) + ManagedString("\n")
         + ManagedString("Rchecksum: ") + ManagedString((int)recChecksum) + ManagedString("\n")
         + ManagedString("checksum: ") + ManagedString((int)sum) + ManagedString("\n") + ManagedString("\n");
-        uBit.serial.send(out);
+    uBit.serial.send(out);
+    
 
     packetsReceived++;
     if(packetsReceived==totalPackets && !isMissingPackets)
     {
-        NRF52FlashManager flasher(0x00076C00, 1, 4096);
-        flasher.erase(0x00076C00);
-        flasher.write(0x00076C00, (uint32_t *)pageBuffer, 1024);
-        flashComplete = true;
+        packetsComplete = true;
+        uBit.radio.disable();
+
+
+        flashUserProgram(0x76000,pageBuffer);
+        __DSB();
+        __ISB();
+        NVIC_SystemReset();
     }
 }

@@ -30,13 +30,20 @@ namespace codal
 
 class MicroBitRadioFlashReceiver
 {
-    private:
-    MicroBit &uBit;
-
     public:
     MicroBitRadioFlashReceiver(MicroBit &uBit);
+    MicroBit &uBit;
+    // volatile bool packetEvent;
+    // volatile bool flashComplete;
+    uint8_t pageBuffer[4096];
+    uint32_t pageIndex;
+    uint32_t totalPackets;
+    uint16_t packetsReceived;
+    bool isMissingPackets;
+
     void handlePacket(PacketBuffer packet);
     void onData(MicroBitEvent e);
+    
 };
 
 } //namespace
