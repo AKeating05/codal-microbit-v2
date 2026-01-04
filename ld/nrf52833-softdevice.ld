@@ -2,7 +2,8 @@ MEMORY
 {
   MBR (rx) : ORIGIN = 0x0000, LENGTH = 0x1000
   SD (rx) : ORIGIN = 0x1000, LENGTH = 0x1B000
-  FLASH (rx) : ORIGIN = 0x1C000, LENGTH = 0x76000 - 0x1C000
+  FLASH (rx) : ORIGIN = 0x1C000, LENGTH = 0x75F00 - 0x1C000
+  USER_ABI (rx) : ORIGIN = 0x75F00, LENGTH = 0x100
   FLASH_USER (rx) : ORIGIN = 0x76000, LENGTH = 0x1000
   BOOTLOADER (rx) : ORIGIN = 0x77000, LENGTH = 0x7E000 - 0x77000
   SETTINGS (rx) : ORIGIN = 0x7E000, LENGTH = 0x2000
@@ -52,6 +53,13 @@ SECTIONS
         KEEP(*(.flash_user.*))
         __user_end__ = .;
     } > FLASH_USER
+
+        . = ALIGN(4);
+    .user_abi :
+    {
+        KEEP(*(.user_abi))
+        KEEP(*(.user_abi.*))
+    } > USER_ABI
 
     .text :
     {
