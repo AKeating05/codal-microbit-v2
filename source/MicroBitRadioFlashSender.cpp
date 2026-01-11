@@ -58,13 +58,13 @@ void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
     
     
     // Packet Structure:
-    // 0            1    2    3             4               5         6         7       8      9    10   11        15
-    // +------------------------------------------------------------------------------------------------------------+
-    // | Sndr/Recvr | Seq Num | Page number | Total packets | Remaining # bytes | Payload size | Checksum | Padding |
-    // +------------------------------------------------------------------------------------------------------------+
-    // |                                                       Data                                                 |
-    // +------------------------------------------------------------------------------------------------------------+
-    // 16                                                                                                          31
+    // 0            1    2    3             4               5         6         7       8      9    10   11        12       13        15
+    // +------------------------------------------------------------------------------------------------------------------------------+
+    // | Sndr/Recvr | Seq Num | Page number | Total packets | Remaining # bytes | Payload size | Checksum | Header Checksum | Padding |
+    // +------------------------------------------------------------------------------------------------------------------------------+
+    // |                                                                 Data                                                         |
+    // +------------------------------------------------------------------------------------------------------------------------------+
+    // 16                                                                                                                             31
 
     uint8_t pageNum = 1;
     for(uint8_t i = 0; i<npackets; i++)
@@ -102,7 +102,7 @@ void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
             currentAddr+=payloadSize;
         }
 
-        // checksum
+        // data checksum
         uint16_t sum = 0;
         for(uint32_t j = 16; j<payloadSize+16; j++)
         {
@@ -110,6 +110,15 @@ void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
         }
         packet[9] = (uint8_t)(sum >> 8) & 0xFF;
         packet[10] = (uint8_t)(sum & 0xFF);
+
+        // header checksum
+        uint16_t hsum = 0;
+        for(uint32_t i = 0; i<9; i++)
+        {
+            hsum+= packet[i];
+        }
+        packet[11] = (uint8_t)(hsum >> 8) & 0xFF;
+        packet[12] = (uint8_t)(hsum & 0xFF);
 
 
         PacketBuffer b(packet,payloadSize+16);
@@ -119,7 +128,8 @@ void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
         + ManagedString("tpackets: ") + ManagedString((int)packet[4]) + ManagedString("\n")
         + ManagedString("remaining: ") + ManagedString((int)((uint16_t)packet[5]<<8) | ((uint16_t)packet[6])) + ManagedString("\n")
         + ManagedString("payloadSize: ") + ManagedString((int)((uint16_t)packet[7]<<8) | ((uint16_t)packet[8])) + ManagedString("\n")
-        + ManagedString("checksum: ") + ManagedString((int)((uint16_t)packet[9]<<8) | ((uint16_t)packet[10])) + ManagedString("\n") + ManagedString("\n");
+        + ManagedString("checksum: ") + ManagedString((int)((uint16_t)packet[9]<<8) | ((uint16_t)packet[10])) + ManagedString("\n")
+        + ManagedString("Header checksum: ") + ManagedString((int)((uint16_t)packet[11]<<8) | ((uint16_t)packet[12])) + ManagedString("\n") + ManagedString("\n");
         uBit.serial.send(out);
         
         uBit.radio.datagram.send(b);
