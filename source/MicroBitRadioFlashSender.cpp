@@ -24,6 +24,7 @@ DEALINGS IN THE SOFTWARE.
 #include "MicroBitRadio.h"
 #include "MicroBitRadioFlashSender.h"
 #include "MicroBit.h"
+#include <stdlib.h>
 
 extern "C"
 {
@@ -70,9 +71,13 @@ void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
     for(uint8_t i = 0; i<npackets; i++)
     {
         uint8_t packet[payloadSize+16] = {0};
-        
+
         // first byte is id (sender or receiver) 255 for sender
         packet[0] = 255;
+        // if(uBit.random(4)>0)
+        // {
+        
+        
 
         // sequence number
         packet[1] = (i >> 8) & 0xFF;
@@ -119,9 +124,11 @@ void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
         }
         packet[11] = (uint8_t)(hsum >> 8) & 0xFF;
         packet[12] = (uint8_t)(hsum & 0xFF);
-
+        // }
 
         PacketBuffer b(packet,payloadSize+16);
+
+
         ManagedString out = ManagedString("id: ") + ManagedString((int)packet[0]) + ManagedString("\n")
         + ManagedString("seq: ") + ManagedString((int)((uint16_t)packet[1]<<8) | ((uint16_t)packet[2])) + ManagedString("\n")
         + ManagedString("page#: ") + ManagedString((int)packet[3]) + ManagedString("\n")

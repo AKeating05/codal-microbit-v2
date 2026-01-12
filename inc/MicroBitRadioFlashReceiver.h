@@ -35,15 +35,16 @@ class MicroBitRadioFlashReceiver
     MicroBit &uBit;
     // volatile bool packetEvent;
     // volatile bool flashComplete;
-    uint8_t pageBuffer[4096];
-    uint32_t totalPackets;
-    uint32_t lastSeqN;
-    uint16_t packetsWritten;
+    // uint8_t pageBuffer[4096];
+    // uint32_t totalPackets;
+    // uint32_t lastSeqN;
+    // uint16_t packetsWritten;
 
     void handleSenderPacket(PacketBuffer packet);
-    void handleSReceiverPacket(PacketBuffer packet);
+    void handleReceiverPacket(PacketBuffer packet);
     void sendNAKs();
     void onData(MicroBitEvent e);
+    void printInfo();
     
 };
 

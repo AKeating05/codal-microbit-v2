@@ -25,7 +25,8 @@ DEALINGS IN THE SOFTWARE.
 #include "nrf.h"
 #include "nrf_sdm.h"
 #include <stdio.h>
-#include <vector>
+#include <set>
+#include <map>
 
 extern "C"
 {
@@ -36,11 +37,13 @@ extern "C"
 volatile bool packetsComplete = false;
 volatile bool flashComplete = false;
 volatile bool packetEvent = false;
-volatile uint8_t totalPackets;
-volatile uint16_t payloadSize;
-volatile uint32_t sleepCount;
-volatile vector<uint32_t> missingPacketSeqs;
-volatile vector<uint32_t> receivedNAKs;
+uint32_t totalPackets;
+uint32_t lastSeqN = 0;
+uint32_t packetsWritten = 0;
+uint32_t payloadSize;
+uint32_t sleepCount;
+std::map<uint32_t,bool> packetMap;
+std::set<uint32_t> receivedNAKs;
 uint8_t pageBuffer[4096];
 
 
@@ -62,33 +65,64 @@ void flashUserProgram(uint32_t flash_addr, uint8_t *pageBuffer)
     }
 }
 
-bool isInVector(uint32_t el, vector<uint32_t> v)
+// int searchSet(uint32_t el, std::set<uint32_t> s)
+// {
+//     std::set<uint32_t>::iterator it;
+//     it = s.find(el);
+//     int index = std::distance(std::begin(s), it);
+//     return index;
+// }
+
+// void MicroBitRadioFlashReceiver::printInfo()
+// {
+//     ManagedString out = ManagedString("Missing packets: ");
+
+//     for(uint32_t i=0; i<missingPacketSeqs.size(); i++)
+//     {
+//         out = out + ManagedString((int)missingPacketSeqs[i]) + ManagedString(", ");
+//     }
+
+//     out = out + ManagedString("\n") + ManagedString("\n");
+
+//     out =  out + ManagedString("Received NAKs: ");
+
+//     for(uint32_t i=0; i<receivedNAKs.size(); i++)
+//     {
+//         out = out + ManagedString((int)receivedNAKs[i]) + ManagedString(", ");
+//     }
+
+//     out = out + ManagedString("\n") + ManagedString("\n");
+
+//     uBit.serial.send(out);
+// }
+
+bool isCheckSumOK(PacketBuffer p)
 {
-    for(uint32_t i=0; i<v.size(); i++)
+    uint16_t recSum = ((uint16_t)p[9]<<8) | ((uint16_t)p[10]);
+    uint16_t sum = 0;
+    for(uint32_t j = 16; j<32; j++)
     {
-        if(v[i]==el)
-            return true;
+        sum+= p[j];
     }
-    return false;
+    bool res = sum==recSum ? true : false;
+    return res;
 }
 
-uint32_t searchVector(uint32_t el, vector<uint32_t> v)
+bool isHeaderCheckSumOK(PacketBuffer p)
 {
-    for(uint32_t i=0; i<v.size(); i++)
+    uint16_t recSum = ((uint16_t)p[11]<<8) | ((uint16_t)p[12]);
+    uint16_t hsum = 0;
+    for(uint32_t j = 0; j<9; j++)
     {
-        if(v[i]==el)
-            return i;
+        hsum+= p[j];
     }
+    bool res = hsum==recSum ? true : false;
+    return res;
 }
-
 
 
 MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
-    : uBit(uBit),
-    totalPackets(0),
-    lastSeqN(0),
-    packetsWritten(0)
-
+    : uBit(uBit)
 {
     memset(pageBuffer, 0, sizeof(pageBuffer));
     uBit.radio.enable();
@@ -97,51 +131,26 @@ MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
     uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, this, &MicroBitRadioFlashReceiver::onData, MESSAGE_BUS_LISTENER_IMMEDIATE);
     while(!packetsComplete)
     {
+        
+        // printInfo();
         if(packetEvent)
         {
+            packetEvent = false; 
             
             PacketBuffer p = uBit.radio.datagram.recv();
-
-            // compute header checksum
-            uint16_t recHChecksum = ((uint16_t)p[11]<<8) | ((uint16_t)p[12]);
-            uint16_t hsum = 0;
-            for(uint32_t j = 0; j<9; j++)
+            while (p.getBytes() != nullptr)
             {
-                hsum+= p[j];
+                ManagedString out = ManagedString("FOO\n");
+                uBit.serial.send(out);
+                // branch if received packet comes from sender or receiver and header is correct
+                if((p[0] == 255) && isHeaderCheckSumOK(p))
+                    handleSenderPacket(p);
+                else if((p[0] == 0) && isHeaderCheckSumOK(p))
+                    handleReceiverPacket(p);
             }
-
-            // branch if received packet comes from sender or receiver and header is correct
-            if((p[0] == 255) && (hsum==recChecksum))
-                handleSenderPacket(p);
-            else if((p[0] == 0) && (hsum==recChecksum))
-                handleReceiverPacket(p);
-
-            packetEvent = false; 
-        }
-        else if(packetsWritten>0)
-        {
-            // if no packet event and at least one packet has been received
-            sleepCount++;
         }
 
         uBit.sleep(200);
-
-        // if loop has run more times than double the number of packets + 10 and there are missing packets, assume end of transmission
-        // timer based approach ensures NAKs are still sent even if the last packet is dropped
-        if(!missingPacketSeqs.empty() && sleepCount>(10 + totalPackets*2))
-        {
-            sleepCount = 0;
-            // check to see if the last or last few packets were dropped
-            if(lastSeqN!=totalPackets && !isInVector(totalPackets,missingPacketSeqs))
-            {
-                for(uint32_t i=lastSeqN+1; i<=totalPackets; i++)
-                {
-                    missingPacketSeqs.push_back(i);
-                }
-            }
-
-            sendNAKs();
-        }
     }
 }
 
@@ -162,67 +171,43 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet)
     // +------------------------------------------------------------------------------------------------------------------------------+
     // 16                                                                                                                             31
 
-    uint8_t id = packet[0];
-    uint16_t seq = ((uint16_t)packet[1]<<8) | ((uint16_t)packet[2]);
-    uint8_t pageNum = packet[3];
-    // set total packets and payload size fields if this is the first packet received
-    if(lastSeqN==0)
+    if(isCheckSumOK(packet))
     {
-        totalPackets = packet[4];
-        payloadSize = ((uint16_t)packet[7]<<8) | ((uint16_t)packet[8]);
-    }
-    uint16_t remaining = ((uint16_t)packet[5]<<8) | ((uint16_t)packet[6]);
-
-    // check for missing packets and add sequence numbers to list if missing
-    if((seq!=lastSeqN+1) && !isInVector(seq, missingPacketSeqs))
-    {
-        for(uint32_t i=lastSeqN+1; i<seq; i++)
+        uint8_t id = packet[0];
+        uint16_t seq = ((uint16_t)packet[1]<<8) | ((uint16_t)packet[2]);
+        uint8_t pageNum = packet[3];
+        uint16_t remaining = ((uint16_t)packet[5]<<8) | ((uint16_t)packet[6]);
+        // set total packets and payload size fields if this is the first packet received
+        if(lastSeqN==0)
         {
-            missingPacketSeqs.push_back(i);
-        }
-    }
-    
+            totalPackets = packet[4];
+            payloadSize = ((uint16_t)packet[7]<<8) | ((uint16_t)packet[8]);
 
-    // checksum current packet
-    uint16_t recChecksum = ((uint16_t)packet[9]<<8) | ((uint16_t)packet[10]);
-    uint16_t sum = 0;
-    for(uint32_t j = 16; j<payloadSize + 16; j++)
-    {
-        sum+= packet[j];
-    }
-
-    // if current packet data is correct write packet
-    if(sum==recChecksum)
-    {
-        // if missing and retransmission, remove from missing list
-        if(isInVector(seq, missingPacketSeqs))
-        {
-            for(uint32_t i=0; i<missingPacketSeqs.size(); i++)
+            // populate packet map
+            for (uint32_t i=0; i<totalPackets; i++)
             {
-                if(missingPacketSeqs[i]==seq)
-                    missingPacketSeqs.erase(i);
+                packetMap[i+1] = false;
             }
         }
+        packetMap[(uint32_t)seq] = true;
         // record sequence number to check for missing packets later
         lastSeqN = seq;
         // copy packet into buffer
         memcpy(&pageBuffer[(seq-1)*payloadSize], &packet[16],payloadSize);
         packetsWritten++;
-    }
-
-    
     
 
-    ManagedString out = ManagedString("id: ") + ManagedString((int) id) + ManagedString("\n")
+        ManagedString out = ManagedString("RECEIVEDid: ") + ManagedString((int) id) + ManagedString("\n")
         + ManagedString("seq: ") + ManagedString((int)seq) + ManagedString("\n")
-        + ManagedString("page#: ") + ManagedString((int)pageNum) + ManagedString("\n")
+        // + ManagedString("page#: ") + ManagedString((int)pageNum) + ManagedString("\n")
         + ManagedString("tpackets: ") + ManagedString((int)totalPackets) + ManagedString("\n")
-        + ManagedString("remaining: ") + ManagedString((int)remaining) + ManagedString("\n")
-        + ManagedString("payloadSize: ") + ManagedString((int)payloadSize) + ManagedString("\n")
-        + ManagedString("Rchecksum: ") + ManagedString((int)recChecksum) + ManagedString("\n")
-        + ManagedString("checksum: ") + ManagedString((int)sum) + ManagedString("\n") + ManagedString("\n");
+        // + ManagedString("remaining: ") + ManagedString((int)remaining) + ManagedString("\n")
+        // + ManagedString("payloadSize: ") + ManagedString((int)payloadSize) + ManagedString("\n")
+        // + ManagedString("Rchecksum: ") + ManagedString((int)recChecksum) + ManagedString("\n")
+        // + ManagedString("checksum: ") + ManagedString((int)sum) 
+        + ManagedString("\n") + ManagedString("\n");
     uBit.serial.send(out);
-    
+    }
 
     // if buffer fully written correctly, proceed to flash
     if(packetsWritten==totalPackets)
@@ -240,8 +225,16 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet)
 
 void MicroBitRadioFlashReceiver::handleReceiverPacket(PacketBuffer packet)
 {
-    
+    uint8_t id = packet[0];
+    uint16_t seq = ((uint16_t)packet[1]<<8) | ((uint16_t)packet[2]);
 
+    ManagedString out = ManagedString("RECEIVEDid: ") + ManagedString((int) id) + ManagedString("\n")
+    + ManagedString("seq: ") + ManagedString((int)seq) + ManagedString("\n")
+    + ManagedString("Header checksum: ") + ManagedString((int)((uint16_t)packet[11]<<8) | ((uint16_t)packet[12])) + ManagedString("\n") + ManagedString("\n");
+    uBit.serial.send(out);
+
+
+    // receivedNAKs.insert(seq);
 }
 
 void MicroBitRadioFlashReceiver::sendNAKs()
@@ -249,5 +242,33 @@ void MicroBitRadioFlashReceiver::sendNAKs()
     // check for NAKs received, send NAK for first packet in list if NAK has not been received from other receiver
     // remove from both lists
 
-    return;
+    // NAK Packet Structure
+    // 0    1              2               3  .....  11   12    13 ....  15  
+    // +------------------------------------------------------------------+
+    // | ID | Seq of packet for retransmit | Padding | Checksum | Padding |
+    // +------------------------------------------------------------------+
+
+    // uint8_t packet[16] = {0};
+    // // sequence number (ID for receiver is 0)
+    // packet[1] = (missingPacketSeqs[0] >> 8) & 0xFF;
+    // packet[2] = missingPacketSeqs[0] & 0xFF;
+
+    // // header checksum
+    // uint16_t hsum = 0;
+    // for(uint32_t i = 0; i<9; i++)
+    // {
+    //     hsum+= packet[i];
+    // }
+    // packet[11] = (uint8_t)(hsum >> 8) & 0xFF;
+    // packet[12] = (uint8_t)(hsum & 0xFF);
+
+    // ManagedString out = ManagedString("SENTid: ") + ManagedString((int)packet[0]) + ManagedString("\n")
+    // + ManagedString("seq: ") + ManagedString((int)((uint16_t)packet[1]<<8) | ((uint16_t)packet[2])) + ManagedString("\n")
+    // + ManagedString("Header checksum: ") + ManagedString((int)((uint16_t)packet[11]<<8) | ((uint16_t)packet[12])) + ManagedString("\n") + ManagedString("\n");
+    // uBit.serial.send(out);
+    
+    // PacketBuffer b(packet,16);
+    // uBit.radio.datagram.send(b);
+
+
 }
