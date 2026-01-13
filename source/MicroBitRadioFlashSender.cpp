@@ -35,18 +35,50 @@ extern "C"
 
 
 MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit &uBit)
-    : uBit(uBit), seq_num(0)
+    : uBit(uBit)
 {
     uBit.radio.enable();
     uBit.radio.setGroup(0);
     uBit.radio.setTransmitPower(6);
-    sendUserProgram(uBit);
-    // uBit.display.scroll("RF");
 }
 
-void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
+void MicroBitRadioFlashSender::Smain()
 {
+    // send user program then listen for NAKs
+    // then send packet for each unique NAK
+    // repeat until no more NAKs
+    uint32_t timer = 0;
+    while(!packetsComplete)
+    {
+        // printInfo();
+        PacketBuffer p = uBit.radio.datagram.recv();
+        if(p.length() >=16)
+        {
+            // ManagedString out = ManagedString("FOO\n");
+            // uBit.serial.send(out);
+            // branch if received packet comes from sender or receiver and header is correct
+            if((p[0] == 255) && isHeaderCheckSumOK(p))
+                handleSenderPacket(p);
+            else if((p[0] == 0) && isHeaderCheckSumOK(p))
+                handleReceiverPacket(p);
+        }
+        else if(timer>100)
+        {
+            timer = 0;
+            uBit.sleep(uBit.random(100));
+            sendNAKs();
+        }
+        else if(lastSeqN!=0)
+        {
+            timer++;
+        }
 
+        uBit.sleep(50);
+    }
+}
+
+void MicroBitRadioFlashSender::sendUserProgram()
+{
     uint8_t *currentAddr = &__user_start__;
     uint32_t user_start = (uint32_t)&__user_start__;
     uint32_t user_end = (uint32_t)&__user_end__;
@@ -68,7 +100,7 @@ void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
     // 16                                                                                                                             31
 
     uint8_t pageNum = 1;
-    for(uint8_t i = 0; i<npackets; i++)
+    for(uint8_t i = 1; i<=npackets; i++)
     {
         uint8_t packet[payloadSize+16] = {0};
 
@@ -146,9 +178,4 @@ void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
         
         uBit.sleep(200);
     }
-}
-
-uint32_t MicroBitRadioFlashSender::getSeqNum()
-{
-    return seq_num;
 }

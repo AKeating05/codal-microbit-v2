@@ -308,9 +308,11 @@ int MicroBit::init()
         #if MICROBIT_ROLE_SENDER
             display.scroll("RFS");
             MicroBitRadioFlashSender sender(*this);
+            sender.Smain();
         #elif MICROBIT_ROLE_RECEIVER
             display.scroll("RFR");
             MicroBitRadioFlashReceiver receiver(*this);
+            receiver.Rmain();
         #endif
     }
 #endif

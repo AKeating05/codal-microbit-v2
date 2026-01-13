@@ -44,6 +44,7 @@ class MicroBitRadioFlashReceiver
     void handleReceiverPacket(PacketBuffer packet);
     void sendNAKs();
     void onData(MicroBitEvent e);
+    void Rmain();
     void printInfo();
     
 };
