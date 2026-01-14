@@ -25,6 +25,7 @@ DEALINGS IN THE SOFTWARE.
 #include "MicroBitRadioFlashSender.h"
 #include "MicroBit.h"
 #include <stdlib.h>
+#include <set>
 
 extern "C"
 {
@@ -32,7 +33,38 @@ extern "C"
     extern uint8_t __user_end__;
 }
 
+std::set<uint16_t> receivedNAKs;
 
+uint32_t user_start = (uint32_t)&__user_start__;
+uint32_t user_end = (uint32_t)&__user_end__;
+uint32_t user_size = user_end - user_start;
+uint16_t payloadSize = 32 - 16;
+uint16_t npackets = (user_size + payloadSize - 1)/payloadSize;
+
+
+bool MicroBitRadioFlashSender::isCheckSumOK(PacketBuffer p)
+{
+    uint16_t recSum = ((uint16_t)p[9]<<8) | ((uint16_t)p[10]);
+    uint16_t sum = 0;
+    for(uint32_t j = 16; j<32; j++)
+    {
+        sum+= p[j];
+    }
+    bool res = sum==recSum ? true : false;
+    return res;
+}
+
+bool MicroBitRadioFlashSender::isHeaderCheckSumOK(PacketBuffer p)
+{
+    uint16_t recSum = ((uint16_t)p[7]<<8) | ((uint16_t)p[8]);
+    uint16_t hsum = 0;
+    for(uint32_t j = 0; j<7; j++)
+    {
+        hsum+= p[j];
+    }
+    bool res = hsum==recSum ? true : false;
+    return res;
+}
 
 MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit &uBit)
     : uBit(uBit)
@@ -42,140 +74,133 @@ MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit &uBit)
     uBit.radio.setTransmitPower(6);
 }
 
+// main sender loop
 void MicroBitRadioFlashSender::Smain()
 {
-    // send user program then listen for NAKs
-    // then send packet for each unique NAK
-    // repeat until no more NAKs
+    sendUserProgram();
+
+    // start a timer incrementing every 50ms, 
+    // if a correct NAK is received add it to the NAK set
+    // else if the timer exceeds 100 (5 seconds) and there are no NAKs assume all received and terminate
+    // else if the timer exceeds 100 (5 seconds) (but NAKs have been received) retransmit all NAKed packets, clear NAK set and restart timer
     uint32_t timer = 0;
-    while(!packetsComplete)
+    while(true)
     {
-        // printInfo();
         PacketBuffer p = uBit.radio.datagram.recv();
         if(p.length() >=16)
         {
-            // ManagedString out = ManagedString("FOO\n");
-            // uBit.serial.send(out);
-            // branch if received packet comes from sender or receiver and header is correct
-            if((p[0] == 255) && isHeaderCheckSumOK(p))
-                handleSenderPacket(p);
-            else if((p[0] == 0) && isHeaderCheckSumOK(p))
-                handleReceiverPacket(p);
+            // listen for NAKs
+            if((p[0] == 0) && isHeaderCheckSumOK(p))
+                handleNAK(p);
+        }
+        else if(receivedNAKs.empty() && timer>100)
+        {
+            break;
         }
         else if(timer>100)
         {
             timer = 0;
-            uBit.sleep(uBit.random(100));
-            sendNAKs();
+            for(uint32_t i=0; i<receivedNAKs.size(); i++)
+                sendSinglePacket(*next(receivedNAKs.begin(), i));
+            receivedNAKs.clear();
         }
-        else if(lastSeqN!=0)
-        {
-            timer++;
-        }
-
+        timer++;
         uBit.sleep(50);
     }
 }
 
+void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq)
+{
+    // Packet Structure:
+    // 0            1    2    3     4         5       6      7        8        9       10     11  .....  15
+    // +-------------------------------------------------------------------------------------------------+
+    // | Sndr/Recvr | Seq Num | Total packets | Payload size | Header Checksum | Data Checksum | Padding |
+    // +-------------------------------------------------------------------------------------------------+
+    // |                                              Data                                               |
+    // +-------------------------------------------------------------------------------------------------+
+    // 16                                                                                                31
+
+    // packet address
+    uint8_t *packetAddress = &__user_start__ + (payloadSize*seq);
+
+    uint8_t packet[payloadSize+16] = {0};
+    
+    // first byte is id (sender or receiver) 255 for sender
+    packet[0] = 255;
+
+    packet[1] = (uint8_t)((seq >> 8) & 0xFF);
+    packet[2] = (uint8_t)(seq & 0xFF);
+    
+    // total packets
+    packet[3] = (uint8_t)((npackets >> 8) & 0xFF);
+    packet[4] = (uint8_t)(npackets & 0xFF);
+    
+    // payload size
+    packet[5] = (uint8_t)((payloadSize >> 8) & 0xFF);
+    packet[6] = (uint8_t)(payloadSize & 0xFF);
+    
+    // header checksum
+    uint16_t hsum = 0;
+    for(uint32_t i = 0; i<7; i++)
+    {
+        hsum+= packet[i];
+    }
+    packet[7] = (uint8_t)((hsum >> 8) & 0xFF);
+    packet[8] = (uint8_t)(hsum & 0xFF);
+
+    // check size of data to be read, if less than size of packet payload read only that size, else read the payload number of bytes
+    if((user_end-(uint32_t)packetAddress)<payloadSize)
+        memcpy(&packet[16],packetAddress,(user_end-(uint32_t)packetAddress));
+    else
+        memcpy(&packet[16],packetAddress,payloadSize);
+    
+    // data checksum
+    uint16_t sum = 0;
+    for(uint32_t j = 16; j<payloadSize+16; j++)
+    {
+        sum+= packet[j];
+    }
+    packet[9] = (uint8_t)((sum >> 8) & 0xFF);
+    packet[10] = (uint8_t)((sum & 0xFF));
+
+    // 25% chance of packet data being corrupt for testing :)
+    if(uBit.random(4)==0)
+    {
+        uint8_t junk[payloadSize] = {0};
+        memcpy(&packet[16],&junk,payloadSize);
+    }
+
+    PacketBuffer b(packet,payloadSize+16);
+
+    ManagedString out = ManagedString("id: ") + ManagedString((int)packet[0]) + ManagedString("\n")
+    + ManagedString("seq: ") + ManagedString((int)((uint16_t)packet[1]<<8) | ((uint16_t)packet[2])) + ManagedString("\n")
+    + ManagedString("tpackets: ") + ManagedString((int)((uint16_t)packet[3]<<8) | ((uint16_t)packet[4])) + ManagedString("\n")
+    + ManagedString("payloadSize: ") + ManagedString((int)((uint16_t)packet[5]<<8) | ((uint16_t)packet[6])) + ManagedString("\n")
+    + ManagedString("header checksum: ") + ManagedString((int)((uint16_t)packet[7]<<8) | ((uint16_t)packet[8])) + ManagedString("\n")
+    + ManagedString("data checksum: ") + ManagedString((int)((uint16_t)packet[9]<<8) | ((uint16_t)packet[10])) + ManagedString("\n") + ManagedString("\n");
+    uBit.serial.send(out);
+    uBit.radio.datagram.send(b);
+    
+    uBit.sleep(200);  
+}
+
 void MicroBitRadioFlashSender::sendUserProgram()
 {
-    uint8_t *currentAddr = &__user_start__;
-    uint32_t user_start = (uint32_t)&__user_start__;
-    uint32_t user_end = (uint32_t)&__user_end__;
-    uint32_t user_size = user_end - user_start;
-    
-    uint16_t payloadSize = 32 - 16;
-    uint8_t npackets = (user_size + payloadSize - 1)/payloadSize;
-    
-
-    
-    
-    // Packet Structure:
-    // 0            1    2    3             4               5         6         7       8      9    10   11        12       13        15
-    // +------------------------------------------------------------------------------------------------------------------------------+
-    // | Sndr/Recvr | Seq Num | Page number | Total packets | Remaining # bytes | Payload size | Checksum | Header Checksum | Padding |
-    // +------------------------------------------------------------------------------------------------------------------------------+
-    // |                                                                 Data                                                         |
-    // +------------------------------------------------------------------------------------------------------------------------------+
-    // 16                                                                                                                             31
-
-    uint8_t pageNum = 1;
-    for(uint8_t i = 1; i<=npackets; i++)
+    for(uint16_t i = 1; i<=npackets; i++)
     {
-        uint8_t packet[payloadSize+16] = {0};
-
-        // first byte is id (sender or receiver) 255 for sender
-        packet[0] = 255;
-        // if(uBit.random(4)>0)
-        // {
-        
-        
-
-        // sequence number
-        packet[1] = (i >> 8) & 0xFF;
-        packet[2] = i & 0xFF;
-
-        // page number and number of packets being sent
-        packet[3] = pageNum;
-        packet[4] = npackets;
-
-        // remaining bytes to send
-        packet[5] = ((user_end-(uint32_t)currentAddr) >> 8) & 0xFF;
-        packet[6] = (user_end-(uint32_t)currentAddr) & 0xFF;
-
-        // payload size
-        packet[7] = (uint8_t)(payloadSize >> 8) & 0xFF;
-        packet[8] = (uint8_t)(payloadSize & 0xFF);
-
-        // check size of data to be read, if less than size of packet payload read only that size, else read the payload number of bytes
-        if((user_end-(uint32_t)currentAddr)<payloadSize)
-        {
-            memcpy(&packet[16],currentAddr,(user_end-(uint32_t)currentAddr));
-            currentAddr+=(user_end-(uint32_t)currentAddr);
-        }
-        else
-        {
-            memcpy(&packet[16],currentAddr,payloadSize);
-            currentAddr+=payloadSize;
-        }
-
-        // data checksum
-        uint16_t sum = 0;
-        for(uint32_t j = 16; j<payloadSize+16; j++)
-        {
-            sum+= packet[j];
-        }
-        packet[9] = (uint8_t)(sum >> 8) & 0xFF;
-        packet[10] = (uint8_t)(sum & 0xFF);
-
-        // header checksum
-        uint16_t hsum = 0;
-        for(uint32_t i = 0; i<9; i++)
-        {
-            hsum+= packet[i];
-        }
-        packet[11] = (uint8_t)(hsum >> 8) & 0xFF;
-        packet[12] = (uint8_t)(hsum & 0xFF);
-        // }
-
-        PacketBuffer b(packet,payloadSize+16);
-
-
-        ManagedString out = ManagedString("id: ") + ManagedString((int)packet[0]) + ManagedString("\n")
-        + ManagedString("seq: ") + ManagedString((int)((uint16_t)packet[1]<<8) | ((uint16_t)packet[2])) + ManagedString("\n")
-        + ManagedString("page#: ") + ManagedString((int)packet[3]) + ManagedString("\n")
-        + ManagedString("tpackets: ") + ManagedString((int)packet[4]) + ManagedString("\n")
-        + ManagedString("remaining: ") + ManagedString((int)((uint16_t)packet[5]<<8) | ((uint16_t)packet[6])) + ManagedString("\n")
-        + ManagedString("payloadSize: ") + ManagedString((int)((uint16_t)packet[7]<<8) | ((uint16_t)packet[8])) + ManagedString("\n")
-        + ManagedString("checksum: ") + ManagedString((int)((uint16_t)packet[9]<<8) | ((uint16_t)packet[10])) + ManagedString("\n")
-        + ManagedString("Header checksum: ") + ManagedString((int)((uint16_t)packet[11]<<8) | ((uint16_t)packet[12])) + ManagedString("\n") + ManagedString("\n");
-        uBit.serial.send(out);
-        
-        uBit.radio.datagram.send(b);
-        
-        // increment page number every 4 packets
-        pageNum += !((i + 1) % 4) ? 1:0; 
-        
-        uBit.sleep(200);
+        sendSinglePacket(i);
     }
+}
+
+void MicroBitRadioFlashSender::handleNAK(PacketBuffer p)
+{
+    // NAK Packet Structure
+    // 0    1              2               3  .....  7    8     9 ....  15  
+    // +------------------------------------------------------------------+
+    // | ID | Seq of packet for retransmit | Padding | Checksum | Padding |
+    // +------------------------------------------------------------------+
+    uint8_t id = p[0];
+    uint16_t seq = ((uint16_t)p[1]<<8) | ((uint16_t)p[2]);
+
+    receivedNAKs.insert(seq);
 }

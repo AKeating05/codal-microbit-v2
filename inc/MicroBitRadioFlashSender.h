@@ -33,8 +33,12 @@ class MicroBitRadioFlashSender
     public:
     MicroBit uBit;
     MicroBitRadioFlashSender(MicroBit &uBit);
+    bool isCheckSumOK(PacketBuffer p);
+    bool isHeaderCheckSumOK(PacketBuffer p);
     void Smain();
     void sendUserProgram();
+    void sendSinglePacket(uint16_t seq);
+    void handleNAK(PacketBuffer p);
 };
 
 } //namespace
