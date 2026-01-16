@@ -75,9 +75,9 @@ MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit &uBit)
 }
 
 // main sender loop
-void MicroBitRadioFlashSender::Smain()
+void MicroBitRadioFlashSender::Smain(MicroBit &uBit)
 {
-    sendUserProgram();
+    sendUserProgram(uBit);
 
     // start a timer incrementing every 50ms, 
     // if a correct NAK is received add it to the NAK set
@@ -91,7 +91,10 @@ void MicroBitRadioFlashSender::Smain()
         {
             // listen for NAKs
             if((p[0] == 0) && isHeaderCheckSumOK(p))
-                handleNAK(p);
+            {
+                timer = 0;
+                handleNAK(p, uBit);
+            }
         }
         else if(receivedNAKs.empty() && timer>100)
         {
@@ -100,8 +103,8 @@ void MicroBitRadioFlashSender::Smain()
         else if(timer>100)
         {
             timer = 0;
-            for(uint32_t i=0; i<receivedNAKs.size(); i++)
-                sendSinglePacket(*next(receivedNAKs.begin(), i));
+            for(auto seq : receivedNAKs)
+                sendSinglePacket(seq, uBit);
             receivedNAKs.clear();
         }
         timer++;
@@ -109,7 +112,7 @@ void MicroBitRadioFlashSender::Smain()
     }
 }
 
-void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq)
+void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq, MicroBit &uBit)
 {
     // Packet Structure:
     // 0            1    2    3     4         5       6      7        8        9       10     11  .....  15
@@ -121,7 +124,7 @@ void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq)
     // 16                                                                                                31
 
     // packet address
-    uint8_t *packetAddress = &__user_start__ + (payloadSize*seq);
+    uint8_t *packetAddress = &__user_start__ + (payloadSize*(seq-1));
 
     uint8_t packet[payloadSize+16] = {0};
     
@@ -184,15 +187,15 @@ void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq)
     uBit.sleep(200);  
 }
 
-void MicroBitRadioFlashSender::sendUserProgram()
+void MicroBitRadioFlashSender::sendUserProgram(MicroBit &uBit)
 {
     for(uint16_t i = 1; i<=npackets; i++)
     {
-        sendSinglePacket(i);
+        sendSinglePacket(i, uBit);
     }
 }
 
-void MicroBitRadioFlashSender::handleNAK(PacketBuffer p)
+void MicroBitRadioFlashSender::handleNAK(PacketBuffer p, MicroBit &uBit)
 {
     // NAK Packet Structure
     // 0    1              2               3  .....  7    8     9 ....  15  
@@ -201,6 +204,8 @@ void MicroBitRadioFlashSender::handleNAK(PacketBuffer p)
     // +------------------------------------------------------------------+
     uint8_t id = p[0];
     uint16_t seq = ((uint16_t)p[1]<<8) | ((uint16_t)p[2]);
+
+    uBit.serial.send(ManagedString("FOO\n"));
 
     receivedNAKs.insert(seq);
 }

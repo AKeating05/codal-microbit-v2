@@ -34,7 +34,6 @@ extern "C"
 }
 
 volatile bool packetsComplete = false;
-volatile bool flashComplete = false;
 volatile bool packetEvent = false;
 uint16_t totalPackets;
 uint16_t lastSeqN = 0;
@@ -54,18 +53,14 @@ void MicroBitRadioFlashReceiver::flashUserProgram(uint32_t flash_addr, uint8_t *
     while (sd_flash_page_erase(page) == NRF_ERROR_BUSY)
         __WFE();
 
-    for (uint32_t offset = 0; offset < 1024; offset += 256)
-    {
-        flashComplete = false;
+    while (sd_flash_write(flash_ptr, data, 1024) == NRF_ERROR_BUSY)
+        __WFE();
 
-        while (sd_flash_write(flash_ptr + offset, data + offset, 256) == NRF_ERROR_BUSY)
-            __WFE();
-    }
 }
 
 bool MicroBitRadioFlashReceiver::checkAllWritten()
 {
-    for(uint32_t i=1; i<=packetMap.size(); i++)
+    for(uint16_t i=1; i<=packetMap.size(); i++)
     {
         if(!packetMap[i])
             return false;
@@ -89,7 +84,7 @@ void MicroBitRadioFlashReceiver::printInfo()
 
     for(uint16_t i=1; i<=totalPackets; i++)
     {
-        if(!receivedNAKs[i])
+        if(receivedNAKs[i])
             out = out + ManagedString((int)i) + ManagedString(", ");
     }
 
@@ -139,10 +134,6 @@ void MicroBitRadioFlashReceiver::Rmain()
         PacketBuffer p = uBit.radio.datagram.recv();
         if(p.length() >=16)
         {
-            printInfo();
-            // ManagedString out = ManagedString("FOO\n");
-            // uBit.serial.send(out);
-            // branch if received packet comes from sender or receiver and header is correct
             if((p[0] == 255) && isHeaderCheckSumOK(p))
                 handleSenderPacket(p);
             else if((p[0] == 0) && isHeaderCheckSumOK(p))
@@ -153,6 +144,7 @@ void MicroBitRadioFlashReceiver::Rmain()
             timer = 0;
             uBit.sleep(uBit.random(100));
             sendNAKs();
+            receivedNAKs.clear();
         }
         else if(lastSeqN!=0)
         {
@@ -246,6 +238,7 @@ void MicroBitRadioFlashReceiver::sendNAKs()
     // | ID | Seq of packet for retransmit | Padding | Checksum | Padding |
     // +------------------------------------------------------------------+
 
+    printInfo();
     for(uint16_t i=1; i<=packetMap.size(); i++)
     {
         if(!packetMap[i] && !receivedNAKs[i])
@@ -266,15 +259,11 @@ void MicroBitRadioFlashReceiver::sendNAKs()
         
             ManagedString out = ManagedString("SENTid: ") + ManagedString((int)packet[0]) + ManagedString("\n")
             + ManagedString("seq: ") + ManagedString((int)((uint16_t)packet[1]<<8) | ((uint16_t)packet[2])) + ManagedString("\n")
-            + ManagedString("Header checksum: ") + ManagedString((int)((uint16_t)packet[11]<<8) | ((uint16_t)packet[12])) + ManagedString("\n") + ManagedString("\n");
+            + ManagedString("Header checksum: ") + ManagedString((int)((uint16_t)packet[7]<<8) | ((uint16_t)packet[8])) + ManagedString("\n") + ManagedString("\n");
             uBit.serial.send(out);
 
             PacketBuffer b(packet,16);
             uBit.radio.datagram.send(b);
-        }
-        else if(!packetMap[i] && receivedNAKs[i])
-        {
-            uBit.sleep(50);
         }
     }
 }

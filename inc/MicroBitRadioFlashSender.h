@@ -30,15 +30,16 @@ namespace codal
 
 class MicroBitRadioFlashSender
 {
-    public:
+    private:
     MicroBit uBit;
+    public:
     MicroBitRadioFlashSender(MicroBit &uBit);
     bool isCheckSumOK(PacketBuffer p);
     bool isHeaderCheckSumOK(PacketBuffer p);
-    void Smain();
-    void sendUserProgram();
-    void sendSinglePacket(uint16_t seq);
-    void handleNAK(PacketBuffer p);
+    void Smain(MicroBit &uBit);
+    void sendUserProgram(MicroBit &uBit);
+    void sendSinglePacket(uint16_t seq, MicroBit &uBit);
+    void handleNAK(PacketBuffer p, MicroBit &uBit);
 };
 
 } //namespace
