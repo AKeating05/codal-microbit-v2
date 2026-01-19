@@ -290,7 +290,7 @@
 // TODO: Update the range here once issue codal-microbit-v2#383 has been resolved
 // https://github.com/lancaster-university/codal-microbit-v2/issues/383
 #ifndef MICROBIT_RADIO_MAX_PACKET_SIZE
-    #define MICROBIT_RADIO_MAX_PACKET_SIZE          1024
+    #define MICROBIT_RADIO_MAX_PACKET_SIZE          250
 #endif
 
 // Enable/Disable partial flashing over radio

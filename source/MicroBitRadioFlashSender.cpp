@@ -23,30 +23,17 @@ DEALINGS IN THE SOFTWARE.
 #include "MicroBitConfig.h"
 #include "MicroBitRadio.h"
 #include "MicroBitRadioFlashSender.h"
+#include "MicroBitRadioFlashConfig.h"
 #include "MicroBit.h"
 #include <stdlib.h>
 #include <set>
-
-extern "C"
-{
-    extern uint8_t __user_start__;
-    extern uint8_t __user_end__;
-}
-
-std::set<uint16_t> receivedNAKs;
-
-uint32_t user_start = (uint32_t)&__user_start__;
-uint32_t user_end = (uint32_t)&__user_end__;
-uint32_t user_size = user_end - user_start;
-uint16_t payloadSize = 32 - 16;
-uint16_t npackets = (user_size + payloadSize - 1)/payloadSize;
 
 
 bool MicroBitRadioFlashSender::isCheckSumOK(PacketBuffer p)
 {
     uint16_t recSum = ((uint16_t)p[9]<<8) | ((uint16_t)p[10]);
     uint16_t sum = 0;
-    for(uint32_t j = 16; j<32; j++)
+    for(uint32_t j = 16; j<16+R_PAYLOAD_SIZE; j++)
     {
         sum+= p[j];
     }
@@ -124,9 +111,9 @@ void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq, MicroBit &uBit)
     // 16                                                                                                31
 
     // packet address
-    uint8_t *packetAddress = &__user_start__ + (payloadSize*(seq-1));
+    uint8_t *packetAddress = &__user_start__ + (R_PAYLOAD_SIZE*(seq-1));
 
-    uint8_t packet[payloadSize+16] = {0};
+    uint8_t packet[R_PAYLOAD_SIZE+16] = {0};
     
     // first byte is id (sender or receiver) 255 for sender
     packet[0] = 255;
@@ -139,8 +126,8 @@ void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq, MicroBit &uBit)
     packet[4] = (uint8_t)(npackets & 0xFF);
     
     // payload size
-    packet[5] = (uint8_t)((payloadSize >> 8) & 0xFF);
-    packet[6] = (uint8_t)(payloadSize & 0xFF);
+    packet[5] = (uint8_t)((R_PAYLOAD_SIZE >> 8) & 0xFF);
+    packet[6] = (uint8_t)(R_PAYLOAD_SIZE & 0xFF);
     
     // header checksum
     uint16_t hsum = 0;
@@ -152,14 +139,14 @@ void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq, MicroBit &uBit)
     packet[8] = (uint8_t)(hsum & 0xFF);
 
     // check size of data to be read, if less than size of packet payload read only that size, else read the payload number of bytes
-    if((user_end-(uint32_t)packetAddress)<payloadSize)
+    if((user_end-(uint32_t)packetAddress)<R_PAYLOAD_SIZE)
         memcpy(&packet[16],packetAddress,(user_end-(uint32_t)packetAddress));
     else
-        memcpy(&packet[16],packetAddress,payloadSize);
+        memcpy(&packet[16],packetAddress,R_PAYLOAD_SIZE);
     
     // data checksum
     uint16_t sum = 0;
-    for(uint32_t j = 16; j<payloadSize+16; j++)
+    for(uint32_t j = 16; j<R_PAYLOAD_SIZE+16; j++)
     {
         sum+= packet[j];
     }
@@ -167,13 +154,13 @@ void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq, MicroBit &uBit)
     packet[10] = (uint8_t)((sum & 0xFF));
 
     // 25% chance of packet data being corrupt for testing :)
-    if(uBit.random(4)==0)
-    {
-        uint8_t junk[payloadSize] = {0};
-        memcpy(&packet[16],&junk,payloadSize);
-    }
+    // if(uBit.random(4)==0)
+    // {
+    //     uint8_t junk[R_PAYLOAD_SIZE] = {0};
+    //     memcpy(&packet[16],&junk,R_PAYLOAD_SIZE);
+    // }
 
-    PacketBuffer b(packet,payloadSize+16);
+    PacketBuffer b(packet,R_PAYLOAD_SIZE+16);
 
     ManagedString out = ManagedString("id: ") + ManagedString((int)packet[0]) + ManagedString("\n")
     + ManagedString("seq: ") + ManagedString((int)((uint16_t)packet[1]<<8) | ((uint16_t)packet[2])) + ManagedString("\n")

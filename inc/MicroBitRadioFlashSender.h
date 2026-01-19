@@ -23,23 +23,61 @@ DEALINGS IN THE SOFTWARE.
 #include "MicroBitConfig.h"
 #include "MicroBitRadio.h"
 #include "MicroBit.h"
-
+#include "MicroBitRadioFlashConfig.h"
+#include <set>
 
 namespace codal
 {
+    /**
+     * Provides Sender logic for partial flashing over radio, built using the MicroBitRadio library
+     * Implements a reliable multicast protocol, where Microbits have fixed roles with one Sender and many Receivers
+     */
+    class MicroBitRadioFlashSender
+    {
+        private:
+        MicroBit uBit;
 
-class MicroBitRadioFlashSender
-{
-    private:
-    MicroBit uBit;
-    public:
-    MicroBitRadioFlashSender(MicroBit &uBit);
-    bool isCheckSumOK(PacketBuffer p);
-    bool isHeaderCheckSumOK(PacketBuffer p);
-    void Smain(MicroBit &uBit);
-    void sendUserProgram(MicroBit &uBit);
-    void sendSinglePacket(uint16_t seq, MicroBit &uBit);
-    void handleNAK(PacketBuffer p, MicroBit &uBit);
-};
+        uint32_t user_start = (uint32_t)&__user_start__;
+        uint32_t user_end = (uint32_t)&__user_end__;
+        uint32_t user_size = user_end - user_start;
+        uint32_t npackets = (user_size + R_PAYLOAD_SIZE - 1)/R_PAYLOAD_SIZE;
+
+        std::set<uint16_t> receivedNAKs;
+
+        /**
+         * 
+         */
+        bool isCheckSumOK(PacketBuffer p);
+
+        /**
+         * 
+         */
+        bool isHeaderCheckSumOK(PacketBuffer p);
+        void sendUserProgram(MicroBit &uBit);
+        void sendSinglePacket(uint16_t seq, MicroBit &uBit);
+        void handleNAK(PacketBuffer p, MicroBit &uBit);
+
+        public:
+        /**
+         * Constructor.
+         * 
+         * Creates an instance of a MicroBitRadioFlashSender which can send its user code
+         * to other MicroBit receivers which can then reflash with the received code
+         * 
+         * @param uBit A reference to the micro:bit object
+         */
+        MicroBitRadioFlashSender(MicroBit &uBit);
+
+        /**
+         * Main Sender logic loop.
+         * 
+         * Called to begin cycle of transmitting the sender's user code, listening for NAKs 
+         * from receivers and retransmitting
+         * 
+         * @param uBit A reference to the micro:bit object
+         */
+        void Smain(MicroBit &uBit);
+
+    };
 
 } //namespace

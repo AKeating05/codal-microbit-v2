@@ -23,6 +23,8 @@ DEALINGS IN THE SOFTWARE.
 #include "MicroBitConfig.h"
 #include "MicroBitRadio.h"
 #include "MicroBit.h"
+#include "MicroBitRadioFlashConfig.h"
+#include <map>
 
 
 namespace codal
@@ -32,23 +34,32 @@ class MicroBitRadioFlashReceiver
 {
     public:
     MicroBitRadioFlashReceiver(MicroBit &uBit);
-    MicroBit &uBit;
-    // volatile bool packetEvent;
-    // volatile bool flashComplete;
-    // uint8_t pageBuffer[4096];
-    // uint32_t totalPackets;
-    // uint32_t lastSeqN;
-    // uint16_t packetsWritten;
+    void Rmain(MicroBit &uBit);
 
-    void handleSenderPacket(PacketBuffer packet);
-    void handleReceiverPacket(PacketBuffer packet);
+    private:
+    MicroBit &uBit;
+
+    uint32_t user_start = (uint32_t)&__user_start__;
+    uint32_t user_end = (uint32_t)&__user_end__;
+    uint32_t user_size = user_end - user_start;
+    uint8_t pageBuffer[4096];
+
+    volatile bool packetsComplete;
+    uint32_t totalPackets;
+    uint32_t lastSeqN;
+    uint16_t payloadSize;
+    std::map<uint16_t, bool> packetMap;
+    std::map<uint16_t, bool> receivedNAKs;
+    
+
+    void handleSenderPacket(PacketBuffer packet, MicroBit &uBit);
+    void handleReceiverPacket(PacketBuffer packet, MicroBit &uBit);
     bool isCheckSumOK(PacketBuffer p);
     bool isHeaderCheckSumOK(PacketBuffer p);
     bool checkAllWritten();
     void flashUserProgram(uint32_t flash_addr, uint8_t *pageBuffer);
-    void sendNAKs();
-    void Rmain();
-    void printInfo();
+    void sendNAKs(MicroBit &uBit);
+    void printInfo(MicroBit &uBit);
     
 };
 
