@@ -40,7 +40,12 @@ namespace codal
         uint32_t user_start = (uint32_t)&__user_start__;
         uint32_t user_end = (uint32_t)&__user_end__;
         uint32_t user_size = user_end - user_start;
-        uint32_t npackets = (user_size + R_PAYLOAD_SIZE - 1)/R_PAYLOAD_SIZE;
+        
+        uint32_t totalPackets = (user_size + R_PAYLOAD_SIZE - 1)/R_PAYLOAD_SIZE;
+        uint32_t packetsPerPage = R_FLASH_PAGE_SIZE / R_PAYLOAD_SIZE;
+        uint32_t totalPages = (totalPackets + packetsPerPage - 1)/ packetsPerPage;
+        
+
 
         std::set<uint16_t> receivedNAKs;
 
@@ -53,9 +58,9 @@ namespace codal
          * 
          */
         bool isHeaderCheckSumOK(PacketBuffer p);
-        void sendUserProgram(MicroBit &uBit);
-        void sendSinglePacket(uint16_t seq, MicroBit &uBit);
-        void handleNAK(PacketBuffer p, MicroBit &uBit);
+        void sendPage(uint16_t npackets, uint32_t currentpage, MicroBit &uBit)
+        void sendSinglePacket(uint16_t seq, uint32_t currentpage, MicroBit &uBit)
+        void handleNAK(PacketBuffer p, uint32_t currentpage, MicroBit &uBit)
 
         public:
         /**

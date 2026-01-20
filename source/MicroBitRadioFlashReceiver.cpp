@@ -105,7 +105,8 @@ bool MicroBitRadioFlashReceiver::isHeaderCheckSumOK(PacketBuffer p)
 MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
     : uBit(uBit),
     packetsComplete(false),
-    lastSeqN(0)
+    lastSeqN(0),
+    currentPage(0)
 {
     memset(pageBuffer, 0, sizeof(pageBuffer));
     uBit.radio.enable();
@@ -150,7 +151,7 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
     // Packet Structure:
     // 0            1    2    3     4         5       6      7        8        9       10     11  .....  15
     // +-------------------------------------------------------------------------------------------------+
-    // | Sndr/Recvr | Seq Num | Total packets | Payload size | Header Checksum | Data Checksum | Padding |
+    // | Sndr/Recvr | Seq Num | Packets /page | Payload size | Header Checksum | Data Checksum | Padding |
     // +-------------------------------------------------------------------------------------------------+
     // |                                              Data                                               |
     // +-------------------------------------------------------------------------------------------------+
@@ -164,7 +165,8 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
         if(lastSeqN==0)
         {
             totalPackets = ((uint16_t)packet[3]<<8) | ((uint16_t)packet[4]);
-            // payloadSize = ((uint16_t)packet[5]<<8) | ((uint16_t)packet[6]);
+            packetsPerPage = R_FLASH_PAGE_SIZE / R_PAYLOAD_SIZE;
+            totalPages = (totalPackets + packetsPerPage - 1) / packetsPerPage;
 
             // populate packet map
             for (uint16_t i=1; i<=totalPackets; i++)

@@ -25,6 +25,7 @@ DEALINGS IN THE SOFTWARE.
  */
 #define R_PAYLOAD_SIZE 32
 #define R_HEADER_SIZE 16
+#define R_FLASH_PAGE_SIZE 4096
 
 /**
  * Linker symbols for the start and end of the flash_user section

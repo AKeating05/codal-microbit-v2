@@ -47,7 +47,9 @@ class MicroBitRadioFlashReceiver
     volatile bool packetsComplete;
     uint32_t totalPackets;
     uint32_t lastSeqN;
-    uint16_t payloadSize;
+    uint32_t currentPage;
+    uint32_t packetsPerPage;
+    uint32_t totalPages;
     std::map<uint16_t, bool> packetMap;
     std::map<uint16_t, bool> receivedNAKs;
     
