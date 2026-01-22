@@ -39,17 +39,22 @@ class MicroBitRadioFlashReceiver
     private:
     MicroBit &uBit;
 
-    uint32_t user_start = (uint32_t)&__user_start__;
-    uint32_t user_end = (uint32_t)&__user_end__;
-    uint32_t user_size = user_end - user_start;
+    // uint32_t user_start = (uint32_t)&__user_start__;
+    // uint32_t user_end = (uint32_t)&__user_end__;
+    // uint32_t user_size = user_end - user_start;
+
+    uint32_t totalPackets;
+    uint32_t totalPages;
+    uint32_t packetsPerPage = R_FLASH_PAGE_SIZE / R_PAYLOAD_SIZE;
+    
+
     uint8_t pageBuffer[4096];
 
-    volatile bool packetsComplete;
-    uint32_t totalPackets;
-    uint32_t lastSeqN;
+    volatile bool pageBuffered;
+    volatile bool transferComplete;
     uint32_t currentPage;
-    uint32_t packetsPerPage;
-    uint32_t totalPages;
+    uint32_t lastSeqN;
+
     std::map<uint16_t, bool> packetMap;
     std::map<uint16_t, bool> receivedNAKs;
     

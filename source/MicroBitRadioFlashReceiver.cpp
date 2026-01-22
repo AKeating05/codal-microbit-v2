@@ -57,7 +57,7 @@ void MicroBitRadioFlashReceiver::printInfo(MicroBit &uBit)
 {
     ManagedString out = ManagedString("Missing packets: ");
 
-    for(uint16_t i=1; i<=totalPackets; i++)
+    for(uint16_t i=1; i<=packetMap.size(); i++)
     {
         if(!packetMap[i])
             out = out + ManagedString((int)i) + ManagedString(", ");
@@ -67,7 +67,7 @@ void MicroBitRadioFlashReceiver::printInfo(MicroBit &uBit)
 
     out =  out + ManagedString("Received NAKs: ");
 
-    for(uint16_t i=1; i<=totalPackets; i++)
+    for(uint16_t i=1; i<=packetMap.size(); i++)
     {
         if(receivedNAKs[i])
             out = out + ManagedString((int)i) + ManagedString(", ");
@@ -104,9 +104,10 @@ bool MicroBitRadioFlashReceiver::isHeaderCheckSumOK(PacketBuffer p)
 
 MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
     : uBit(uBit),
-    packetsComplete(false),
-    lastSeqN(0),
-    currentPage(0)
+    pageBuffered(false),
+    transferComplete(false),
+    currentPage(1),
+    lastSeqN(0)
 {
     memset(pageBuffer, 0, sizeof(pageBuffer));
     uBit.radio.enable();
@@ -117,7 +118,7 @@ MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
 void MicroBitRadioFlashReceiver::Rmain(MicroBit &uBit)
 {
     uint32_t timer = 0;
-    while(!packetsComplete)
+    while(!transferComplete)
     {
         PacketBuffer p = uBit.radio.datagram.recv();
         if(p.length() >=16)
@@ -149,27 +150,37 @@ void MicroBitRadioFlashReceiver::Rmain(MicroBit &uBit)
 void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBit &uBit)
 {
     // Packet Structure:
-    // 0            1    2    3     4         5       6      7        8        9       10     11  .....  15
-    // +-------------------------------------------------------------------------------------------------+
-    // | Sndr/Recvr | Seq Num | Packets /page | Payload size | Header Checksum | Data Checksum | Padding |
-    // +-------------------------------------------------------------------------------------------------+
-    // |                                              Data                                               |
-    // +-------------------------------------------------------------------------------------------------+
-    // 16                                                                                                31
+    // 0            1   2   3    4   5       6       7        8        9       10      11  .... 15
+    // +-----------------------------------------------------------------------------------------+
+    // | Sndr/Recvr | Seq # | Page # | Total packets | Header Checksum | Data Checksum | Padding |
+    // +-----------------------------------------------------------------------------------------+
+    // |                                              Data                                       |
+    // +-----------------------------------------------------------------------------------------+
+    // 16                                                                                        31
 
     if(isCheckSumOK(packet))
     {
         uint8_t id = packet[0];
         uint16_t seq = ((uint16_t)packet[1]<<8) | ((uint16_t)packet[2]);
-        // set total packets and payload size fields if this is the first packet received
-        if(lastSeqN==0)
-        {
-            totalPackets = ((uint16_t)packet[3]<<8) | ((uint16_t)packet[4]);
-            packetsPerPage = R_FLASH_PAGE_SIZE / R_PAYLOAD_SIZE;
-            totalPages = (totalPackets + packetsPerPage - 1) / packetsPerPage;
+        uint16_t page = ((uint16_t)packet[3]<<8) | ((uint16_t)packet[4]);
+        if(page!=currentPage)
+            return;
 
+        // set fields if this is the first packet received this round
+        if(lastSeqN==0 && currentPage == 1)
+        {
+            totalPackets = ((uint16_t)packet[5]<<8) | ((uint16_t)packet[6]);
+            totalPages = (totalPackets + packetsPerPage - 1) / packetsPerPage;
+        }
+        else if(lastSeqN==0)
+        {
+            uint16_t packetsThisPage = packetsPerPage;
+            if(currentPage==totalPages)
+                packetsThisPage = (totalPackets - packetsPerPage * (currentPage - 1));
+            
+            packetMap.clear();
             // populate packet map
-            for (uint16_t i=1; i<=totalPackets; i++)
+            for (uint16_t i=1; i<=packetsThisPage; i++)
             {
                 packetMap[i] = false;
             }
@@ -179,7 +190,7 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
         if(packetMap[seq]==true)
             return;
         
-        // record sequence number to check for missing packets later
+        // record last sequence number
         lastSeqN = seq;
         // copy packet into buffer
         memcpy(&pageBuffer[(seq-1)*R_PAYLOAD_SIZE], &packet[16],R_PAYLOAD_SIZE);
@@ -188,14 +199,24 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
         // if buffer fully written correctly, proceed to flash
         if(checkAllWritten())
         {
-            packetsComplete = true;
-            uBit.radio.disable();
+            pageBuffered = true;
+            flashUserProgram((0x76000 + ((currentPage-1) * R_FLASH_PAGE_SIZE)),pageBuffer);
+            
 
-
-            flashUserProgram(0x76000,pageBuffer);
-            __DSB();
-            __ISB();
-            NVIC_SystemReset();
+            // reset buffer and flags
+            packetMap.clear();
+            receivedNAKs.clear();
+            lastSeqN = 0;
+            memset(pageBuffer, 0, sizeof(pageBuffer));
+            currentPage++;
+            if(currentPage>totalPages)
+            {
+                transferComplete = true;
+                uBit.radio.disable();
+                __DSB();
+                __ISB();
+                NVIC_SystemReset();
+            }
         }
     
         ManagedString out = ManagedString("RECEIVEDid: ") + ManagedString((int) id) + ManagedString("\n")
@@ -222,20 +243,24 @@ void MicroBitRadioFlashReceiver::handleReceiverPacket(PacketBuffer packet, Micro
 void MicroBitRadioFlashReceiver::sendNAKs(MicroBit &uBit)
 {
     // NAK Packet Structure
-    // 0    1              2               3  .....  7    8     9 ....  15  
-    // +------------------------------------------------------------------+
-    // | ID | Seq of packet for retransmit | Padding | Checksum | Padding |
-    // +------------------------------------------------------------------+
+    // 0    1              2               3    4   5  .....  7    8     9 ....  15  
+    // +---------------------------------------------------------------------------+
+    // | ID | Seq of packet for retransmit | Page # | Padding | Checksum | Padding |
+    // +---------------------------------------------------------------------------+
 
     printInfo(uBit);
     for(uint16_t i=1; i<=packetMap.size(); i++)
     {
         if(!packetMap[i] && !receivedNAKs[i])
         {
-            uint8_t packet[16] = {0};
+            uint8_t packet[R_HEADER_SIZE] = {0};
             // sequence number (ID for receiver is 0)
             packet[1] = (uint8_t)((i >> 8) & 0xFF);
             packet[2] = (uint8_t)(i & 0xFF);
+
+            // current page
+            packet[3] = (uint8_t)((currentPage >> 8) & 0xFF);
+            packet[4] = (uint8_t)(currentPage & 0xFF);
             
             // header checksum
             uint16_t hsum = 0;

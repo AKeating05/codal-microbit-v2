@@ -58,9 +58,9 @@ namespace codal
          * 
          */
         bool isHeaderCheckSumOK(PacketBuffer p);
-        void sendPage(uint16_t npackets, uint32_t currentpage, MicroBit &uBit)
-        void sendSinglePacket(uint16_t seq, uint32_t currentpage, MicroBit &uBit)
-        void handleNAK(PacketBuffer p, uint32_t currentpage, MicroBit &uBit)
+        void sendPage(uint16_t npackets, uint32_t currentpage, MicroBit &uBit);
+        void sendSinglePacket(uint16_t seq, uint32_t currentpage, MicroBit &uBit);
+        void handleNAK(PacketBuffer p, uint32_t currentpage, MicroBit &uBit);
 
         public:
         /**
