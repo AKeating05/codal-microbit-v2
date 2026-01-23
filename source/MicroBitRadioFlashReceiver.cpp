@@ -166,17 +166,17 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
         if(page!=currentPage)
             return;
 
-        // set fields if this is the first packet received this round
-        if(lastSeqN==0 && currentPage == 1)
-        {
-            totalPackets = ((uint16_t)packet[5]<<8) | ((uint16_t)packet[6]);
-            totalPages = (totalPackets + packetsPerPage - 1) / packetsPerPage;
-        }
-        else if(lastSeqN==0)
+        if(lastSeqN==0)
         {
             uint16_t packetsThisPage = packetsPerPage;
             if(currentPage==totalPages)
                 packetsThisPage = (totalPackets - packetsPerPage * (currentPage - 1));
+            
+            if(currentPage == 1)
+            {
+                totalPackets = ((uint16_t)packet[5]<<8) | ((uint16_t)packet[6]);
+                totalPages = (totalPackets + packetsPerPage - 1) / packetsPerPage;
+            }
             
             packetMap.clear();
             // populate packet map

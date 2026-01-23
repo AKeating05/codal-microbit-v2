@@ -125,7 +125,7 @@ void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq, uint32_t currentPa
     // 16                                                                                        31
 
     // packet address
-    uint32_t absolutePacket = (currentPage - 1) + packetsPerPage + (seq - 1);
+    uint32_t absolutePacket = ((currentPage - 1) * packetsPerPage) + (seq - 1);
     uint8_t *packetAddress = &__user_start__ + (absolutePacket * R_PAYLOAD_SIZE);
 
     uint8_t packet[R_HEADER_SIZE + R_PAYLOAD_SIZE] = {0};
