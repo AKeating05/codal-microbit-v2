@@ -3,10 +3,10 @@
 
 static MicroBit *_uBit;
 
-// static void abi_scroll(const char *s)
-// {
-//     _uBit->display.scroll(s);
-// }
+static void abi_scroll(const char *s)
+{
+    _uBit->display.scroll(s);
+}
 
 static void abi_sleep(int ms)
 {
@@ -22,7 +22,7 @@ extern "C"
 const UserABI user_abi
 __attribute__((section(".user_abi"), used)) =
 {
-    // .scroll = abi_scroll,
+    .scroll = abi_scroll,
     .sleep = abi_sleep,
     .set_pixel = abi_set_pixel
 };
