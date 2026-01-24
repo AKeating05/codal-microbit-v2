@@ -45,9 +45,9 @@ void MicroBitRadioFlashReceiver::flashUserProgram(uint32_t flash_addr, uint8_t *
 
 bool MicroBitRadioFlashReceiver::checkAllWritten()
 {
-    for(uint16_t i=1; i<=packetMap.size(); i++)
+    for(auto &kv : packetMap)
     {
-        if(!packetMap[i])
+        if(!kv.second)
             return false;
     }
     return true;
@@ -57,20 +57,20 @@ void MicroBitRadioFlashReceiver::printInfo(MicroBit &uBit)
 {
     ManagedString out = ManagedString("Missing packets: ");
 
-    for(uint16_t i=1; i<=packetMap.size(); i++)
+    for(auto &kv : packetMap)
     {
-        if(!packetMap[i])
-            out = out + ManagedString((int)i) + ManagedString(", ");
+        if(!kv.second)
+            out = out + ManagedString((int)kv.first) + ManagedString(", ");
     }
 
     out = out + ManagedString("\n") + ManagedString("\n");
 
     out =  out + ManagedString("Received NAKs: ");
 
-    for(uint16_t i=1; i<=packetMap.size(); i++)
+    for(auto &kv : receivedNAKs)
     {
-        if(receivedNAKs[i])
-            out = out + ManagedString((int)i) + ManagedString(", ");
+        if(kv.second)
+            out = out + ManagedString((int)kv.first) + ManagedString(", ");
     }
 
     out = out + ManagedString("\n") + ManagedString("\n");
@@ -168,21 +168,21 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
 
         if(lastSeqN==0)
         {
-            uint16_t packetsThisPage = packetsPerPage;
-            if(currentPage==totalPages)
-                packetsThisPage = (totalPackets - packetsPerPage * (currentPage - 1));
-            
             if(currentPage == 1)
             {
                 totalPackets = ((uint16_t)packet[5]<<8) | ((uint16_t)packet[6]);
                 totalPages = (totalPackets + packetsPerPage - 1) / packetsPerPage;
             }
+
+            uint16_t packetsThisPage = packetsPerPage;
+            if(currentPage==totalPages)
+                packetsThisPage = (totalPackets - packetsPerPage * (currentPage - 1));
             
             packetMap.clear();
             // populate packet map
             for (uint16_t i=1; i<=packetsThisPage; i++)
             {
-                packetMap[i] = false;
+                packetMap.emplace(i,false);
             }
         }
 
@@ -195,6 +195,12 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
         // copy packet into buffer
         memcpy(&pageBuffer[(seq-1)*R_PAYLOAD_SIZE], &packet[16],R_PAYLOAD_SIZE);
         packetMap[seq] = true;
+
+        ManagedString out = ManagedString("RECEIVEDid: ") + ManagedString((int) id) + ManagedString("\n")
+        + ManagedString("seq: ") + ManagedString((int)seq) + ManagedString("\n")
+        + ManagedString("tpackets: ") + ManagedString((int)totalPackets) + ManagedString("\n")
+        + ManagedString("\n");
+        uBit.serial.send(out);
 
         // if buffer fully written correctly, proceed to flash
         if(checkAllWritten())
@@ -218,12 +224,6 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
                 NVIC_SystemReset();
             }
         }
-    
-        ManagedString out = ManagedString("RECEIVEDid: ") + ManagedString((int) id) + ManagedString("\n")
-        + ManagedString("seq: ") + ManagedString((int)seq) + ManagedString("\n")
-        + ManagedString("tpackets: ") + ManagedString((int)totalPackets) + ManagedString("\n")
-        + ManagedString("\n");
-        uBit.serial.send(out);
     }
 }
 
@@ -251,7 +251,7 @@ void MicroBitRadioFlashReceiver::sendNAKs(MicroBit &uBit)
     printInfo(uBit);
     for(uint16_t i=1; i<=packetMap.size(); i++)
     {
-        if(!packetMap[i] && !receivedNAKs[i])
+        if(!packetMap.at(i) && !receivedNAKs.at(i))
         {
             uint8_t packet[R_HEADER_SIZE] = {0};
             // sequence number (ID for receiver is 0)

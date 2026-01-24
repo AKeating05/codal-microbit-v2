@@ -8,6 +8,11 @@ static void abi_scroll(const char *s)
     _uBit->display.scroll(s);
 }
 
+static int abi_random(int max)
+{
+    return _uBit->random(max);
+}
+
 static void abi_sleep(int ms)
 {
     _uBit->sleep(ms);
@@ -23,6 +28,7 @@ const UserABI user_abi
 __attribute__((section(".user_abi"), used)) =
 {
     .scroll = abi_scroll,
+    .random = abi_random,
     .sleep = abi_sleep,
     .set_pixel = abi_set_pixel
 };

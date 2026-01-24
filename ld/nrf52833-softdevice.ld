@@ -89,7 +89,7 @@ SECTIONS
       KEEP(*(SORT(.log_const_data*)))
       PROVIDE(__stop_log_const_data = .);
     } > FLASH
-    
+    /*user*/
     .sdh_ble_observers :
     {
       PROVIDE(__start_sdh_ble_observers = .);
