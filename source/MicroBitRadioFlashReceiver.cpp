@@ -29,18 +29,25 @@ DEALINGS IN THE SOFTWARE.
 #include <map>
 
 
-void MicroBitRadioFlashReceiver::flashUserProgram(uint32_t flash_addr, uint8_t *pageBuffer)
+void MicroBitRadioFlashReceiver::flashUserPage(uint32_t flash_addr, uint8_t *pageBuffer)
 {
-    uint32_t page = flash_addr / 4096;
+    uint32_t page = flash_addr / R_FLASH_PAGE_SIZE;
     uint32_t *flash_ptr = (uint32_t *)flash_addr;
     uint32_t *data = (uint32_t *)pageBuffer;
-
-    while (sd_flash_page_erase(page) == NRF_ERROR_BUSY)
-        __WFE();
 
     while (sd_flash_write(flash_ptr, data, 1024) == NRF_ERROR_BUSY)
         __WFE();
 
+}
+
+void MicroBitRadioFlashReceiver::eraseAllUserPages()
+{
+    for(uint32_t addr = 0x71000; addr<0x77000; addr+=R_FLASH_PAGE_SIZE)
+    {
+        uint32_t page = addr/R_FLASH_PAGE_SIZE;
+        while(sd_flash_page_erase(page) == NRF_ERROR_BUSY)
+            __WFE();
+    }
 }
 
 bool MicroBitRadioFlashReceiver::checkAllWritten()
@@ -106,9 +113,11 @@ MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
     : uBit(uBit),
     pageBuffered(false),
     transferComplete(false),
+    totalPackets(0),
     currentPage(1),
     lastSeqN(0)
 {
+    eraseAllUserPages();
     memset(pageBuffer, 0, sizeof(pageBuffer));
     uBit.radio.enable();
     uBit.radio.setGroup(0);
@@ -128,10 +137,10 @@ void MicroBitRadioFlashReceiver::Rmain(MicroBit &uBit)
             else if((p[0] == 0) && isHeaderCheckSumOK(p))
                 handleReceiverPacket(p, uBit);
         }
-        else if(timer>100)
+        else if(timer>100+totalPackets)
         {
             timer = 0;
-            uBit.sleep(uBit.random(100));
+            uBit.sleep(uBit.random(20));
             sendNAKs(uBit);
             receivedNAKs.clear();
         }
@@ -140,7 +149,7 @@ void MicroBitRadioFlashReceiver::Rmain(MicroBit &uBit)
             timer++;
         }
 
-        uBit.sleep(50);
+        uBit.sleep(10);
     }
 }
 
@@ -179,10 +188,11 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
                 packetsThisPage = (totalPackets - packetsPerPage * (currentPage - 1));
             
             packetMap.clear();
-            // populate packet map
+            // populate packet map & NAK map
             for (uint16_t i=1; i<=packetsThisPage; i++)
             {
                 packetMap.emplace(i,false);
+                receivedNAKs.emplace(i,false);
             }
         }
 
@@ -196,17 +206,17 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
         memcpy(&pageBuffer[(seq-1)*R_PAYLOAD_SIZE], &packet[16],R_PAYLOAD_SIZE);
         packetMap[seq] = true;
 
-        ManagedString out = ManagedString("RECEIVEDid: ") + ManagedString((int) id) + ManagedString("\n")
-        + ManagedString("seq: ") + ManagedString((int)seq) + ManagedString("\n")
-        + ManagedString("tpackets: ") + ManagedString((int)totalPackets) + ManagedString("\n")
-        + ManagedString("\n");
-        uBit.serial.send(out);
+        // ManagedString out = ManagedString("RECEIVEDid: ") + ManagedString((int) id) + ManagedString("\n")
+        // + ManagedString("seq: ") + ManagedString((int)seq) + ManagedString("\n")
+        // + ManagedString("tpackets: ") + ManagedString((int)totalPackets) + ManagedString("\n")
+        // + ManagedString("\n");
+        // uBit.serial.send(out);
 
         // if buffer fully written correctly, proceed to flash
         if(checkAllWritten())
         {
             pageBuffered = true;
-            flashUserProgram((0x76000 + ((currentPage-1) * R_FLASH_PAGE_SIZE)),pageBuffer);
+            flashUserPage((0x71000 + ((currentPage-1) * R_FLASH_PAGE_SIZE)),pageBuffer);
             
 
             // reset buffer and flags
@@ -232,9 +242,9 @@ void MicroBitRadioFlashReceiver::handleReceiverPacket(PacketBuffer packet, Micro
     uint8_t id = packet[0];
     uint16_t seq = ((uint16_t)packet[1]<<8) | ((uint16_t)packet[2]);
 
-    ManagedString out = ManagedString("RECEIVEDid: ") + ManagedString((int) id) + ManagedString("\n")
-    + ManagedString("seq: ") + ManagedString((int)seq) + ManagedString("\n") + ManagedString("\n");
-    uBit.serial.send(out);
+    // ManagedString out = ManagedString("RECEIVEDid: ") + ManagedString((int) id) + ManagedString("\n")
+    // + ManagedString("seq: ") + ManagedString((int)seq) + ManagedString("\n") + ManagedString("\n");
+    // uBit.serial.send(out);
 
 
     receivedNAKs[seq] = true;
@@ -271,10 +281,10 @@ void MicroBitRadioFlashReceiver::sendNAKs(MicroBit &uBit)
             packet[7] = (uint8_t)((hsum >> 8) & 0xFF);
             packet[8] = (uint8_t)((hsum & 0xFF));
         
-            ManagedString out = ManagedString("SENTid: ") + ManagedString((int)packet[0]) + ManagedString("\n")
-            + ManagedString("seq: ") + ManagedString((int)((uint16_t)packet[1]<<8) | ((uint16_t)packet[2])) + ManagedString("\n")
-            + ManagedString("Header checksum: ") + ManagedString((int)((uint16_t)packet[7]<<8) | ((uint16_t)packet[8])) + ManagedString("\n") + ManagedString("\n");
-            uBit.serial.send(out);
+            // ManagedString out = ManagedString("SENTid: ") + ManagedString((int)packet[0]) + ManagedString("\n")
+            // + ManagedString("seq: ") + ManagedString((int)((uint16_t)packet[1]<<8) | ((uint16_t)packet[2])) + ManagedString("\n")
+            // + ManagedString("Header checksum: ") + ManagedString((int)((uint16_t)packet[7]<<8) | ((uint16_t)packet[8])) + ManagedString("\n") + ManagedString("\n");
+            // uBit.serial.send(out);
 
             PacketBuffer b(packet,16);
             uBit.radio.datagram.send(b);

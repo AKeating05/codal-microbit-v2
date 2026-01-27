@@ -108,7 +108,7 @@ void MicroBitRadioFlashSender::Smain(MicroBit &uBit)
                 receivedNAKs.clear();
             }
             timer++;
-            uBit.sleep(50);
+            uBit.sleep(10);
         }
     }
 }
@@ -178,16 +178,16 @@ void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq, uint32_t currentPa
 
     PacketBuffer b(packet,R_PAYLOAD_SIZE+16);
 
-    ManagedString out = ManagedString("id: ") + ManagedString((int)packet[0]) + ManagedString("\n")
-    + ManagedString("seq: ") + ManagedString((int)((uint16_t)packet[1]<<8) | ((uint16_t)packet[2])) + ManagedString("\n")
-    + ManagedString("tpackets: ") + ManagedString((int)((uint16_t)packet[3]<<8) | ((uint16_t)packet[4])) + ManagedString("\n")
-    + ManagedString("payloadSize: ") + ManagedString((int)((uint16_t)packet[5]<<8) | ((uint16_t)packet[6])) + ManagedString("\n")
-    + ManagedString("header checksum: ") + ManagedString((int)((uint16_t)packet[7]<<8) | ((uint16_t)packet[8])) + ManagedString("\n")
-    + ManagedString("data checksum: ") + ManagedString((int)((uint16_t)packet[9]<<8) | ((uint16_t)packet[10])) + ManagedString("\n") + ManagedString("\n");
-    uBit.serial.send(out);
+    // ManagedString out = ManagedString("id: ") + ManagedString((int)packet[0]) + ManagedString("\n")
+    // + ManagedString("seq: ") + ManagedString((int)((uint16_t)packet[1]<<8) | ((uint16_t)packet[2])) + ManagedString("\n")
+    // + ManagedString("page#: ") + ManagedString((int)((uint16_t)packet[3]<<8) | ((uint16_t)packet[4])) + ManagedString("\n")
+    // + ManagedString("tpackets: ") + ManagedString((int)((uint16_t)packet[5]<<8) | ((uint16_t)packet[6])) + ManagedString("\n")
+    // + ManagedString("header checksum: ") + ManagedString((int)((uint16_t)packet[7]<<8) | ((uint16_t)packet[8])) + ManagedString("\n")
+    // + ManagedString("data checksum: ") + ManagedString((int)((uint16_t)packet[9]<<8) | ((uint16_t)packet[10])) + ManagedString("\n") + ManagedString("\n");
+    // uBit.serial.send(out);
     uBit.radio.datagram.send(b);
     
-    uBit.sleep(200);  
+    uBit.sleep(10);  
 }
 
 void MicroBitRadioFlashSender::sendPage(uint16_t npackets, uint32_t currentPage, MicroBit &uBit)

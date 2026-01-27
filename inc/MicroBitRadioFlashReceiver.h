@@ -64,7 +64,8 @@ class MicroBitRadioFlashReceiver
     bool isCheckSumOK(PacketBuffer p);
     bool isHeaderCheckSumOK(PacketBuffer p);
     bool checkAllWritten();
-    void flashUserProgram(uint32_t flash_addr, uint8_t *pageBuffer);
+    void flashUserPage(uint32_t flash_addr, uint8_t *pageBuffer);
+    void eraseAllUserPages();
     void sendNAKs(MicroBit &uBit);
     void printInfo(MicroBit &uBit);
     
