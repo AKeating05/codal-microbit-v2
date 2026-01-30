@@ -39,9 +39,11 @@ class MicroBitRadioFlashReceiver
     private:
     MicroBit &uBit;
 
-    // uint32_t user_start = (uint32_t)&__user_start__;
-    // uint32_t user_end = (uint32_t)&__user_end__;
-    // uint32_t user_size = user_end - user_start;
+    uint32_t user_start = (uint32_t)&__user_start__;
+    uint32_t user_end = (uint32_t)&__user_end__;
+    uint32_t user_size = user_end - user_start;
+
+    uint32_t start_time;
 
     uint32_t totalPackets;
     uint32_t totalPages;

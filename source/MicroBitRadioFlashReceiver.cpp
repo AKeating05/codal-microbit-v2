@@ -42,7 +42,7 @@ void MicroBitRadioFlashReceiver::flashUserPage(uint32_t flash_addr, uint8_t *pag
 
 void MicroBitRadioFlashReceiver::eraseAllUserPages()
 {
-    for(uint32_t addr = 0x71000; addr<0x77000; addr+=R_FLASH_PAGE_SIZE)
+    for(uint32_t addr = user_start; addr<user_end; addr+=R_FLASH_PAGE_SIZE)
     {
         uint32_t page = addr/R_FLASH_PAGE_SIZE;
         while(sd_flash_page_erase(page) == NRF_ERROR_BUSY)
@@ -111,13 +111,14 @@ bool MicroBitRadioFlashReceiver::isHeaderCheckSumOK(PacketBuffer p)
 
 MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
     : uBit(uBit),
-    pageBuffered(false),
     transferComplete(false),
     totalPackets(0),
     currentPage(1),
-    lastSeqN(0)
+    lastSeqN(0),
+    start_time(0)
 {
-    eraseAllUserPages();
+    // eraseAllUserPages();
+    
     memset(pageBuffer, 0, sizeof(pageBuffer));
     uBit.radio.enable();
     uBit.radio.setGroup(0);
@@ -179,6 +180,7 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
         {
             if(currentPage == 1)
             {
+                start_time = uBit.systemTime();
                 totalPackets = ((uint16_t)packet[5]<<8) | ((uint16_t)packet[6]);
                 totalPages = (totalPackets + packetsPerPage - 1) / packetsPerPage;
             }
@@ -215,8 +217,8 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
         // if buffer fully written correctly, proceed to flash
         if(checkAllWritten())
         {
-            pageBuffered = true;
-            flashUserPage((0x71000 + ((currentPage-1) * R_FLASH_PAGE_SIZE)),pageBuffer);
+            if(currentPage==1) eraseAllUserPages();
+            flashUserPage((user_start + ((currentPage-1) * R_FLASH_PAGE_SIZE)),pageBuffer);
             
 
             // reset buffer and flags
@@ -227,6 +229,15 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
             currentPage++;
             if(currentPage>totalPages)
             {
+                uint32_t end_time = uBit.systemTime();
+                uint32_t total_time = end_time - start_time;
+                uint32_t throughput = (totalPackets*R_PAYLOAD_SIZE) / total_time;
+                uint32_t throughputR = (totalPackets*R_PAYLOAD_SIZE) % total_time;
+                ManagedString out = ManagedString("time: ") + ManagedString((int) total_time) + ManagedString("\n")
+                + ManagedString("throughput: ") + ManagedString((int) throughput) + ManagedString("\n")
+                + ManagedString("remainder: ") + ManagedString((int) throughputR) + ManagedString("\n");
+                uBit.serial.send(out);
+                uBit.sleep(500);
                 transferComplete = true;
                 uBit.radio.disable();
                 __DSB();

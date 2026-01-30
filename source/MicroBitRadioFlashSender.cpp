@@ -29,18 +29,6 @@ DEALINGS IN THE SOFTWARE.
 #include <set>
 
 
-bool MicroBitRadioFlashSender::isCheckSumOK(PacketBuffer p)
-{
-    uint16_t recSum = ((uint16_t)p[9]<<8) | ((uint16_t)p[10]);
-    uint16_t sum = 0;
-    for(uint32_t j = 16; j<16+R_PAYLOAD_SIZE; j++)
-    {
-        sum+= p[j];
-    }
-    bool res = sum==recSum ? true : false;
-    return res;
-}
-
 bool MicroBitRadioFlashSender::isHeaderCheckSumOK(PacketBuffer p)
 {
     uint16_t recSum = ((uint16_t)p[7]<<8) | ((uint16_t)p[8]);
