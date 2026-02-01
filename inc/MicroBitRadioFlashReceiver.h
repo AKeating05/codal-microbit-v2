@@ -57,6 +57,8 @@ class MicroBitRadioFlashReceiver
     uint32_t currentPage;
     uint32_t lastSeqN;
 
+    uint8_t id;
+
     std::map<uint16_t, bool> packetMap;
     std::map<uint16_t, bool> receivedNAKs;
     

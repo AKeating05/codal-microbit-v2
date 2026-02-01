@@ -67,10 +67,7 @@ void MicroBitRadioFlashSender::Smain(MicroBit &uBit)
         else
             sendPage(packetsPerPage, currentPage, uBit);
 
-        // start a timer incrementing every 50ms, 
-        // if a correct NAK is received add it to the NAK set
-        // else if the timer exceeds 100 (5 seconds) and there are no NAKs assume all received and terminate
-        // else if the timer exceeds 100 (5 seconds) (but NAKs have been received) retransmit all NAKed packets, clear NAK set and restart timer
+        sendEndOfPagePacket(uBit);
         uint32_t timer = 0;
         while(true)
         {
@@ -84,21 +81,39 @@ void MicroBitRadioFlashSender::Smain(MicroBit &uBit)
                     handleNAK(p, currentPage, uBit);
                 }
             }
-            else if(receivedNAKs.empty() && timer>100)
+            else if(receivedNAKs.empty() && timer>200+packetsPerPage)
             {
                 break;
             }
-            else if(timer>100)
+            else if(timer>200+packetsPerPage)
             {
                 timer = 0;
                 for(auto seq : receivedNAKs)
                     sendSinglePacket(seq, currentPage, uBit);
                 receivedNAKs.clear();
+                sendEndOfPagePacket(uBit);
             }
             timer++;
             uBit.sleep(10);
         }
     }
+}
+
+void MicroBitRadioFlashSender::sendEndOfPagePacket(MicroBit &uBit)
+{
+    uint8_t packet[R_HEADER_SIZE] = {0};
+    packet[0] = 120;
+
+    uint16_t hsum = 0;
+    for(uint32_t i = 0; i<7; i++)
+    {
+        hsum+= packet[i];
+    }
+    packet[7] = (uint8_t)((hsum >> 8) & 0xFF);
+    packet[8] = (uint8_t)(hsum & 0xFF);
+
+    PacketBuffer b(packet,R_HEADER_SIZE);
+    uBit.radio.datagram.send(b);
 }
 
 void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq, uint32_t currentPage, MicroBit &uBit)
@@ -112,7 +127,7 @@ void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq, uint32_t currentPa
     // +-----------------------------------------------------------------------------------------+
     // 16                                                                                        31
 
-    // packet address
+    // packet address, (pages and sequence numbers start from 1, not 0 :) )
     uint32_t absolutePacket = ((currentPage - 1) * packetsPerPage) + (seq - 1);
     uint8_t *packetAddress = &__user_start__ + (absolutePacket * R_PAYLOAD_SIZE);
 
@@ -144,13 +159,13 @@ void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq, uint32_t currentPa
 
     // check size of data to be read, if less than size of packet payload read only that size, else read the payload number of bytes
     if((user_end-(uint32_t)packetAddress)<R_PAYLOAD_SIZE)
-        memcpy(&packet[16],packetAddress,(user_end-(uint32_t)packetAddress));
+        memcpy(&packet[R_HEADER_SIZE],packetAddress,(user_end-(uint32_t)packetAddress));
     else
-        memcpy(&packet[16],packetAddress,R_PAYLOAD_SIZE);
+        memcpy(&packet[R_HEADER_SIZE],packetAddress,R_PAYLOAD_SIZE);
     
     // data checksum
     uint16_t sum = 0;
-    for(uint32_t j = 16; j<R_PAYLOAD_SIZE+16; j++)
+    for(uint32_t j = R_HEADER_SIZE; j<R_PAYLOAD_SIZE+R_HEADER_SIZE; j++)
     {
         sum+= packet[j];
     }
@@ -164,7 +179,7 @@ void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq, uint32_t currentPa
     //     memcpy(&packet[16],&junk,R_PAYLOAD_SIZE);
     // }
 
-    PacketBuffer b(packet,R_PAYLOAD_SIZE+16);
+    PacketBuffer b(packet,R_PAYLOAD_SIZE+R_HEADER_SIZE);
 
     // ManagedString out = ManagedString("id: ") + ManagedString((int)packet[0]) + ManagedString("\n")
     // + ManagedString("seq: ") + ManagedString((int)((uint16_t)packet[1]<<8) | ((uint16_t)packet[2])) + ManagedString("\n")

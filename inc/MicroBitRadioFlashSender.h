@@ -82,6 +82,7 @@ namespace codal
          */
         void sendPage(uint16_t npackets, uint32_t currentpage, MicroBit &uBit);
 
+        void sendEndOfPagePacket(MicroBit &uBit);
         /**
          * Parses a NAK from a receiver Microbit and adds its sequence number to a list of NAKs used for retransmission
          * 

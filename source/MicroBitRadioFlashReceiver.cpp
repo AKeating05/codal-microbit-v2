@@ -116,13 +116,13 @@ MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
     currentPage(1),
     lastSeqN(0),
     start_time(0)
-{
-    // eraseAllUserPages();
-    
+{   
     memset(pageBuffer, 0, sizeof(pageBuffer));
     uBit.radio.enable();
     uBit.radio.setGroup(0);
     uBit.radio.setTransmitPower(6);
+
+    id = uBit.random(255);
 }
 
 void MicroBitRadioFlashReceiver::Rmain(MicroBit &uBit)
@@ -137,18 +137,27 @@ void MicroBitRadioFlashReceiver::Rmain(MicroBit &uBit)
                 handleSenderPacket(p, uBit);
             else if((p[0] == 0) && isHeaderCheckSumOK(p))
                 handleReceiverPacket(p, uBit);
+            else if((p[0] == 120) && isHeaderCheckSumOK(p))
+            {
+                if(!checkAllWritten())
+                {
+                    uBit.sleep(uBit.random(20));
+                    sendNAKs(uBit);
+                }
+                receivedNAKs.clear();
+            }
         }
-        else if(timer>100+totalPackets)
-        {
-            timer = 0;
-            uBit.sleep(uBit.random(20));
-            sendNAKs(uBit);
-            receivedNAKs.clear();
-        }
-        else if(lastSeqN!=0)
-        {
-            timer++;
-        }
+        // else if(timer>100+totalPackets)
+        // {
+        //     timer = 0;
+        //     uBit.sleep(uBit.random(20));
+        //     sendNAKs(uBit);
+        //     receivedNAKs.clear();
+        // }
+        // else if(lastSeqN!=0)
+        // {
+        //     timer++;
+        // }
 
         uBit.sleep(10);
     }
