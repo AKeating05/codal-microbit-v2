@@ -310,9 +310,13 @@ int MicroBit::init()
             MicroBitRadioFlashSender sender(*this);
             sender.Smain(*this);
         #elif MICROBIT_ROLE_RECEIVER
-            display.scroll("RFR");
-            MicroBitRadioFlashReceiver receiver(*this);
-            receiver.Rmain(*this);
+            // Rmain will timeout after a period of silence, so if sender has failed, the receiver will automatically reset and begin listening again
+            while(1)
+            {
+                display.scroll("RFR");
+                MicroBitRadioFlashReceiver receiver(*this);
+                receiver.Rmain(*this);
+            }
         #endif
     }
 #endif

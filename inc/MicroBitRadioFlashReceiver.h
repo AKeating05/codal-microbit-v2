@@ -39,35 +39,46 @@ class MicroBitRadioFlashReceiver
     private:
     MicroBit &uBit;
 
-    uint32_t user_start = (uint32_t)&__user_start__;
-    uint32_t user_end = (uint32_t)&__user_end__;
-    uint32_t user_size = user_end - user_start;
-
-    uint32_t start_time;
+    uint32_t user_start;
+    uint32_t user_end;
+    uint32_t user_size;
+    uint8_t pageBuffer[4096];
 
     uint32_t totalPackets;
     uint32_t totalPages;
-    uint32_t packetsPerPage = R_FLASH_PAGE_SIZE / R_PAYLOAD_SIZE;
-    
-
-    uint8_t pageBuffer[4096];
-
-    volatile bool pageBuffered;
-    volatile bool transferComplete;
-    uint32_t currentPage;
-    uint32_t lastSeqN;
-
-    uint8_t id;
+    uint32_t packetsPerPage;
 
     std::map<uint16_t, bool> packetMap;
     std::map<uint16_t, bool> receivedNAKs;
+    
+    enum PageState
+    {
+        RECEIVING,
+        RECOVERY
+    };
+
+    volatile bool transferComplete;
+    uint32_t currentPage;
+    uint32_t lastSeqN;
+    uint32_t lastRxTime;
+    uint32_t lastNAKTime;
+
+    uint32_t start_time;
+
+    uint8_t xPixel;
+    uint8_t yPixel;
+    uint32_t fraction;
+    uint32_t packetsWritten;
+
+
     
 
     void handleSenderPacket(PacketBuffer packet, MicroBit &uBit);
     void handleReceiverPacket(PacketBuffer packet, MicroBit &uBit);
     bool isCheckSumOK(PacketBuffer p);
     bool isHeaderCheckSumOK(PacketBuffer p);
-    bool checkAllWritten();
+    void updateLoadingScreen(MicroBit &uBit);
+    bool isBufferWritten();
     void flashUserPage(uint32_t flash_addr, uint8_t *pageBuffer);
     void eraseAllUserPages();
     void sendNAKs(MicroBit &uBit);

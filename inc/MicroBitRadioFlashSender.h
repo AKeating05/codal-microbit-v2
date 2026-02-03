@@ -37,15 +37,22 @@ namespace codal
         private:
         MicroBit uBit; //reference to the microbit device
 
-        uint32_t user_start = (uint32_t)&__user_start__; //address for the start of the code placed in FLASH_USER region, from the linker symbol __user_start__
-        uint32_t user_end = (uint32_t)&__user_end__; //address for the end of the code placed in FLASH_USER region, from the linker symbol __user_end__ (not necessarily the same as the end of the defined region)
-        uint32_t user_size = user_end - user_start; //size of the user code
+        uint32_t user_start; //address for the start of the code placed in FLASH_USER region, from the linker symbol __user_start__
+        uint32_t user_end; //address for the end of the code placed in FLASH_USER region, from the linker symbol __user_end__ (not necessarily the same as the end of the defined region)
+        uint32_t user_size; //size of the user code
         
-        uint32_t totalPackets = (user_size + R_PAYLOAD_SIZE - 1)/R_PAYLOAD_SIZE; //total number of packets for the entire payload
-        uint32_t packetsPerPage = R_FLASH_PAGE_SIZE / R_PAYLOAD_SIZE; //number of packets sent per page
-        uint32_t totalPages = (totalPackets + packetsPerPage - 1)/ packetsPerPage; //total number of pages
+        uint32_t totalPackets; //total number of packets for the entire payload
+        uint32_t packetsPerPage; //number of packets sent per page
+        uint32_t totalPages; //total number of pages
+
+        uint32_t NAKTimeout;
         
         std::set<uint16_t> receivedNAKs;
+
+        uint32_t packetsSent;
+        uint8_t xPixel;
+        uint8_t yPixel;
+        uint32_t fraction;
 
         /**
          * Calculates checksum for the packet's header and compares with the received checksum inside the packet
@@ -54,6 +61,8 @@ namespace codal
          * @return true if both checksums are the same, false otherwise
          */
         bool isHeaderCheckSumOK(PacketBuffer p);
+
+        void updateLoadingScreen(MicroBit &uBit);
 
         /**
          * Sends one packet from a page of FLASH_USER, defined in the linker script
@@ -68,19 +77,19 @@ namespace codal
          * 16                                                                                        31
          * 
          * @param seq the sequence number of the packet being sent, this is also used to calculate the correct address to read from
-         * @param currentpage the number of the current page being sent
+         * @param currentPage the number of the current page being sent
          * @param uBit reference to the microbit device
          */
-        void sendSinglePacket(uint16_t seq, uint32_t currentpage, MicroBit &uBit);
+        void sendSinglePacket(uint16_t seq, uint32_t currentPage, MicroBit &uBit);
 
         /**
          * Sends a page of flash by calling sendSinglePacket(), for 0 to npackets
          * 
          * @param npackets the number of packets sent this page
-         * @param currentpage the number of the current page being sent
+         * @param currentPage the number of the current page being sent
          * @param uBit reference to the microbit device
          */
-        void sendPage(uint16_t npackets, uint32_t currentpage, MicroBit &uBit);
+        void sendPage(uint16_t npackets, uint32_t currentPage, MicroBit &uBit);
 
         void sendEndOfPagePacket(MicroBit &uBit);
         /**
@@ -93,10 +102,10 @@ namespace codal
          * +---------------------------------------------------------------------------+
          * 
          * @param p the NAK packet received
-         * @param currentpage the number of the page that was last sent, used to check if the NAK is for the current page
+         * @param currentPage the number of the page that was last sent, used to check if the NAK is for the current page
          * @param uBit reference to the microbit device
          */
-        void handleNAK(PacketBuffer p, uint32_t currentpage, MicroBit &uBit);
+        void handleNAK(PacketBuffer p, uint32_t currentPage, MicroBit &uBit);
 
         public:
         /**

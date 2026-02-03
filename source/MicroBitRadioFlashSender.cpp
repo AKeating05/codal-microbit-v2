@@ -29,6 +29,7 @@ DEALINGS IN THE SOFTWARE.
 #include <set>
 
 
+
 bool MicroBitRadioFlashSender::isHeaderCheckSumOK(PacketBuffer p)
 {
     uint16_t recSum = ((uint16_t)p[7]<<8) | ((uint16_t)p[8]);
@@ -41,9 +42,37 @@ bool MicroBitRadioFlashSender::isHeaderCheckSumOK(PacketBuffer p)
     return res;
 }
 
+void MicroBitRadioFlashSender::updateLoadingScreen(MicroBit &uBit)
+{
+    if(!((packetsSent) % fraction))
+    {
+        if(xPixel==5)
+        {
+            xPixel = 0;
+            yPixel++;
+        }
+        uBit.display.image.setPixelValue(xPixel,yPixel,255);
+        xPixel++; 
+    }
+}
+
 MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit &uBit)
     : uBit(uBit)
 {
+    this->user_start = (uint32_t)&__user_start__;
+    this->user_end = (uint32_t)&__user_end__;
+    this->user_size = user_end - user_start;
+    this->totalPackets = (user_size + R_PAYLOAD_SIZE - 1)/R_PAYLOAD_SIZE;
+    this->packetsPerPage = R_FLASH_PAGE_SIZE / R_PAYLOAD_SIZE;
+    this->totalPages = (totalPackets + packetsPerPage - 1)/ packetsPerPage;
+
+    this->NAKTimeout = 0;
+
+    this->packetsSent = 0;
+    this->xPixel = 0;
+    this->yPixel = 0;
+    this->fraction = totalPackets / 25;
+
     uBit.radio.enable();
     uBit.radio.setGroup(0);
     uBit.radio.setTransmitPower(6);
@@ -68,7 +97,7 @@ void MicroBitRadioFlashSender::Smain(MicroBit &uBit)
             sendPage(packetsPerPage, currentPage, uBit);
 
         sendEndOfPagePacket(uBit);
-        uint32_t timer = 0;
+        NAKTimeout = uBit.systemTime();
         while(true)
         {
             PacketBuffer p = uBit.radio.datagram.recv();
@@ -77,24 +106,20 @@ void MicroBitRadioFlashSender::Smain(MicroBit &uBit)
                 // listen for NAKs
                 if((p[0] == 0) && isHeaderCheckSumOK(p))
                 {
-                    timer = 0;
+                    NAKTimeout = uBit.systemTime();
                     handleNAK(p, currentPage, uBit);
                 }
             }
-            else if(receivedNAKs.empty() && timer>200+packetsPerPage)
-            {
+            else if(receivedNAKs.empty() && (uBit.systemTime()-NAKTimeout)>(100+50*packetsPerPage))
                 break;
-            }
-            else if(timer>200+packetsPerPage)
+            else if((uBit.systemTime()-NAKTimeout)>(100+10*packetsPerPage))
             {
-                timer = 0;
+                NAKTimeout = uBit.systemTime();
                 for(auto seq : receivedNAKs)
                     sendSinglePacket(seq, currentPage, uBit);
                 receivedNAKs.clear();
                 sendEndOfPagePacket(uBit);
             }
-            timer++;
-            uBit.sleep(10);
         }
     }
 }
@@ -198,6 +223,8 @@ void MicroBitRadioFlashSender::sendPage(uint16_t npackets, uint32_t currentPage,
     for(uint16_t i = 1; i<=npackets; i++)
     {
         sendSinglePacket(i, currentPage, uBit);
+        updateLoadingScreen(uBit);
+        packetsSent++;
     }
 }
 
