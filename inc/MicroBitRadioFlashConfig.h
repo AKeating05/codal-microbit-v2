@@ -28,6 +28,16 @@ DEALINGS IN THE SOFTWARE.
 #define R_FLASH_PAGE_SIZE 4096
 
 /**
- * Linker symbols for the start and end of the flash_user section
+ * Note: These addresses define the start and end of the FLASH_USER region, not the start and end of the code placed there
+ * They must be the same as the addresses of this region in the linker script nrf52833-softdevice.ld
+ */
+#define USER_BASE_ADDRESS 0x71000
+#define USER_END_ADDRESS 0x77000
+
+#define R_SLEEP_TIME 100 
+#define R_NAK_WINDOW 1.5*R_SLEEP_TIME*(R_FLASH_PAGE_SIZE/R_PAYLOAD_SIZE)
+
+/**
+ * Linker symbols for the start and end of code placed in the flash_user section
  */
 extern uint8_t __user_start__, __user_end__;

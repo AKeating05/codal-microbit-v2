@@ -51,15 +51,18 @@ class MicroBitRadioFlashReceiver
     std::map<uint16_t, bool> packetMap;
     std::map<uint16_t, bool> receivedNAKs;
     
-    enum PageState
+    typedef enum PageState
     {
         RECEIVING,
         RECOVERY
-    };
+    }PageState;
+
+    volatile PageState pageState;
 
     volatile bool transferComplete;
-    uint32_t currentPage;
-    uint32_t lastSeqN;
+    // volatile bool pageInitialised;
+    uint16_t currentPage;
+    uint16_t lastSeqN;
     uint32_t lastRxTime;
     uint32_t lastNAKTime;
 

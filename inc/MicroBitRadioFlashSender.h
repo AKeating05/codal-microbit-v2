@@ -25,6 +25,7 @@ DEALINGS IN THE SOFTWARE.
 #include "MicroBit.h"
 #include "MicroBitRadioFlashConfig.h"
 #include <set>
+#include <map>
 
 namespace codal
 {
@@ -38,7 +39,7 @@ namespace codal
         MicroBit uBit; //reference to the microbit device
 
         uint32_t user_start; //address for the start of the code placed in FLASH_USER region, from the linker symbol __user_start__
-        uint32_t user_end; //address for the end of the code placed in FLASH_USER region, from the linker symbol __user_end__ (not necessarily the same as the end of the defined region)
+        uint32_t user_end; //address for the end of the code placed in FLASH_USER region, from the linker symbol __user_end__ (not the same as USER_END_ADDRESS)
         uint32_t user_size; //size of the user code
         
         uint32_t totalPackets; //total number of packets for the entire payload
@@ -48,6 +49,8 @@ namespace codal
         uint32_t NAKTimeout;
         
         std::set<uint16_t> receivedNAKs;
+        std::map<uint16_t, uint32_t> sendTimes;
+        std::map<uint16_t, uint32_t> rtts;
 
         uint32_t packetsSent;
         uint8_t xPixel;
