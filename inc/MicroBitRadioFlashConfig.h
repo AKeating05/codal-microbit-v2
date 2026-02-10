@@ -35,7 +35,7 @@ DEALINGS IN THE SOFTWARE.
 #define USER_END_ADDRESS 0x77000
 
 #define R_SLEEP_TIME 100 
-#define R_NAK_WINDOW 1.5*R_SLEEP_TIME*(R_FLASH_PAGE_SIZE/R_PAYLOAD_SIZE)
+#define R_NAK_WINDOW 3*R_SLEEP_TIME
 
 /**
  * Linker symbols for the start and end of code placed in the flash_user section
