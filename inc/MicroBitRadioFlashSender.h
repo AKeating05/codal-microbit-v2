@@ -26,6 +26,7 @@ DEALINGS IN THE SOFTWARE.
 #include "MicroBitRadioFlashConfig.h"
 #include <set>
 #include <map>
+#include <utility>
 
 namespace codal
 {
@@ -50,7 +51,7 @@ namespace codal
         
         std::set<uint16_t> receivedNAKs;
         std::map<uint16_t, uint32_t> sendTimes;
-        std::map<uint16_t, uint32_t> rtts;
+        std::map<std::pair<uint16_t,uint16_t>, uint32_t> rtts;
 
         uint32_t packetsSent;
         uint8_t xPixel;

@@ -61,12 +61,12 @@ class MicroBitRadioFlashReceiver
     volatile PageState pageState;
 
     volatile bool transferComplete;
-    // volatile bool pageInitialised;
     uint16_t currentPage;
     uint16_t lastSeqN;
     uint32_t lastRxTime;
     uint32_t lastNAKTime;
     bool readyToNAK;
+    uint32_t nakRounds;
 
     uint32_t start_time;
 

@@ -108,6 +108,8 @@ bool MicroBitRadioFlashReceiver::isHeaderCheckSumOK(PacketBuffer p)
 
 void MicroBitRadioFlashReceiver::updateLoadingScreen(MicroBit &uBit)
 {
+    if(!fraction)
+        fraction = 1;
     if(!((packetsWritten) % fraction))
     {
         if(xPixel==5)
@@ -125,24 +127,21 @@ MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
     : uBit(uBit)
 {   
     memset(pageBuffer, 0, sizeof(pageBuffer));
+    eraseAllUserPages();
 
     this->totalPackets = 0;
     this->totalPages = 0;
     this->packetsPerPage = R_FLASH_PAGE_SIZE / R_PAYLOAD_SIZE;
     this->packetsThisPage = packetsPerPage;
 
-    // this->user_start = (uint32_t)&__user_start__;
-    // this->user_end = (uint32_t)&__user_end__;
-    // this->user_size = user_end - user_start;
-
     this->pageState = RECEIVING;
     this->transferComplete = false;
-    // this->pageInitialised = false;
     this->currentPage = 1;
     this->lastSeqN = 0;
     this->lastRxTime = 0;
     this->lastNAKTime = 0;
     this->readyToNAK = false;
+    this->nakRounds = 0;
     this->start_time = 0;
     
 
@@ -166,16 +165,17 @@ void MicroBitRadioFlashReceiver::Rmain(MicroBit &uBit)
         {
             if((p[0] == 120) && isHeaderCheckSumOK(p))
             {
-                if(uBit.random(4)!=0)
-                {
+                // if(uBit.random(4)!=0)
+                // {
                     handleSenderPacket(p, uBit);
                     updateLoadingScreen(uBit); // update loading animation
-                }
+                // }
             }
             else if((p[0] == 121) && isHeaderCheckSumOK(p))
                 handleReceiverPacket(p, uBit);
             else if((p[0] == 122) && isHeaderCheckSumOK(p))
             {
+                // uBit.serial.send("--Recover EOP--\n\n");
                 pageState = RECOVERY;
                 uBit.sleep(uBit.random(2*R_NAK_WINDOW));
                 readyToNAK = true;
@@ -189,6 +189,16 @@ void MicroBitRadioFlashReceiver::Rmain(MicroBit &uBit)
             for (uint16_t i=1; i<=packetsThisPage; i++)
                 receivedNAKs[i] = false;
         }
+        else if(uBit.systemTime() - lastRxTime > 100*R_NAK_WINDOW && lastSeqN!=0) //if nothing from sender for a long time and page has started reset
+            return;
+        else if(uBit.systemTime() - lastRxTime > 4*R_NAK_WINDOW && lastSeqN!=0) //if nothing from sender for 4 NAK windows and page has started enter recovery
+        {
+            // uBit.serial.send("--Recover timeout--\n\n");
+            pageState = RECOVERY;
+            uBit.sleep(uBit.random(2*R_NAK_WINDOW));
+            readyToNAK = true;
+        }
+        
 
         uBit.sleep(R_SLEEP_TIME/2);
     }
@@ -221,7 +231,7 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
                 start_time = uBit.systemTime();
                 totalPackets = ((uint16_t)packet[5]<<8) | ((uint16_t)packet[6]);
                 totalPages = (totalPackets + packetsPerPage - 1) / packetsPerPage;
-                fraction = max(1, totalPackets / 25);
+                fraction = totalPackets / 25;
             }
             else if(currentPage==totalPages)
                 packetsThisPage = (totalPackets - packetsPerPage * (currentPage - 1));
@@ -235,7 +245,6 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
                     packetMap[i] = false;
                     receivedNAKs[i] = false;
                 }
-                // pageInitialised = true;
             }
         }
         else
@@ -264,7 +273,6 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
         // if buffer fully written correctly, proceed to flash
         if(isBufferWritten())
         {
-            if(currentPage==1) eraseAllUserPages();
             flashUserPage((USER_BASE_ADDRESS + ((currentPage-1) * R_FLASH_PAGE_SIZE)),pageBuffer);
             
             // reset buffer and flags
@@ -274,7 +282,6 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
             lastRxTime = 0;
             lastNAKTime = 0;
             pageState = RECEIVING;
-            // pageInitialised = false;
             memset(pageBuffer, 0, sizeof(pageBuffer));
             currentPage++;
             if(currentPage>totalPages)
@@ -282,12 +289,43 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
                 transferComplete = true;
                 uint32_t end_time = uBit.systemTime();
                 uint32_t total_time = end_time - start_time;
-                uint32_t throughput = ((totalPackets*R_PAYLOAD_SIZE*800000) / total_time);
-                ManagedString out = ManagedString("time: ") + ManagedString((int) total_time) + ManagedString("\n")
-                + ManagedString("throughput: ") + ManagedString((int) throughput) + ManagedString("\n");
-                uBit.serial.send(out);
-                uBit.sleep(500);
+                uint32_t throughput = ((totalPackets*R_PAYLOAD_SIZE*8000) / total_time);
                 
+                // send stats
+                uint32_t recID = uBit.random(0xFFFFFFFF);
+                uint8_t packet[16] = {0};
+
+                //id
+                packet[0] = (uint8_t)((recID >> 24) & 0xFF);
+                packet[1] = (uint8_t)((recID >> 16) & 0xFF);
+                packet[2] = (uint8_t)((recID >> 8) & 0xFF);
+                packet[3] = (uint8_t)(recID & 0xFF);
+
+                //nak rounds
+                packet[4] = (uint8_t)((nakRounds >> 24) & 0xFF);
+                packet[5] = (uint8_t)((nakRounds >> 16) & 0xFF);
+                packet[6] = (uint8_t)((nakRounds >> 8) & 0xFF);
+                packet[7] = (uint8_t)(nakRounds & 0xFF);
+
+                //time
+                packet[8] = (uint8_t)((throughput >> 24) & 0xFF);
+                packet[9] = (uint8_t)((throughput >> 16) & 0xFF);
+                packet[10] = (uint8_t)((throughput >> 8) & 0xFF);
+                packet[11] = (uint8_t)(throughput & 0xFF);
+
+                //throughput
+                packet[12] = (uint8_t)((total_time >> 24) & 0xFF);
+                packet[13] = (uint8_t)((total_time >> 16) & 0xFF);
+                packet[14] = (uint8_t)((total_time >> 8) & 0xFF);
+                packet[15] = (uint8_t)(total_time & 0xFF);
+
+                uBit.sleep(30*R_NAK_WINDOW + uBit.random(R_NAK_WINDOW));
+                PacketBuffer b(packet,16);
+                uBit.radio.datagram.send(b);
+                // uBit.sleep(uBit.random(R_NAK_WINDOW));
+                // uBit.radio.datagram.send(b);
+
+                uBit.sleep(2000);
                 uBit.radio.disable();
                 __DSB();
                 __ISB();
@@ -306,8 +344,9 @@ void MicroBitRadioFlashReceiver::handleReceiverPacket(PacketBuffer packet, Micro
 
 
     // infer that transmission of the current page has ended from NAK
-    if(page == currentPage)
+    if(page == currentPage && pageState==RECEIVING)
     {
+        // uBit.serial.send("--Recover heard NAK--\n\n");
         pageState = RECOVERY;
         uBit.sleep(uBit.random(3*R_NAK_WINDOW));
         readyToNAK = true;
@@ -322,14 +361,15 @@ void MicroBitRadioFlashReceiver::handleReceiverPacket(PacketBuffer packet, Micro
 
 void MicroBitRadioFlashReceiver::sendNAKs(MicroBit &uBit)
 {
-    uBit.serial.send(ManagedString("Sending NAKs\n\n"));
+    nakRounds++;
+    // uBit.serial.send(ManagedString("Sending NAKs\n\n"));
     // NAK Packet Structure
     // 0    1              2               3    4   5  .....  7    8     9 ....  15  
     // +---------------------------------------------------------------------------+
     // | ID | Seq of packet for retransmit | Page # | Padding | Checksum | Padding |
     // +---------------------------------------------------------------------------+
 
-    printInfo(uBit);
+    // printInfo(uBit);
     for(uint16_t i=1; i<=packetMap.size(); i++)
     {
         if(!packetMap.at(i) && !receivedNAKs.at(i))
