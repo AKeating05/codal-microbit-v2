@@ -76,13 +76,14 @@ MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit &uBit)
     this->fraction = totalPackets / 25;
 
     uBit.radio.setGroup(42);
-    uBit.radio.setTransmitPower(6);
+    uBit.radio.setTransmitPower(4);
     uBit.radio.enable();
 }
 
 // main sender loop
 void MicroBitRadioFlashSender::Smain(MicroBit &uBit)
 {
+    srand(uBit.systemTime());
     for(uint32_t currentPage = 1; currentPage <=totalPages; currentPage++)
     {
         // uBit.serial.send("---Sending page---\n\n");
@@ -201,7 +202,7 @@ void MicroBitRadioFlashSender::sendEndOfPagePacket(MicroBit &uBit)
     for(uint8_t i = 0; i<3; i++)
     {
         uBit.radio.datagram.send(b);
-        uBit.sleep(R_SLEEP_TIME + uBit.random(5));
+        uBit.sleep(R_SLEEP_TIME + (rand() % 5));
     }
 }
 
@@ -273,7 +274,7 @@ void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq, uint32_t currentPa
     sendTimes[seq] = uBit.systemTime();
     uBit.radio.datagram.send(b);
     
-    uBit.sleep(R_SLEEP_TIME + uBit.random(5));  
+    uBit.sleep(R_SLEEP_TIME + (rand() % 5));  
 }
 
 void MicroBitRadioFlashSender::sendPage(uint16_t npackets, uint32_t currentPage, MicroBit &uBit)

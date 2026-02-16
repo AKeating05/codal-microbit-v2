@@ -150,14 +150,14 @@ MicroBitRadioFlashReceiver::MicroBitRadioFlashReceiver(MicroBit &uBit)
     this->fraction = 1;
     this->packetsWritten = 0;
 
-    
     uBit.radio.setGroup(42);
-    uBit.radio.setTransmitPower(6);
+    uBit.radio.setTransmitPower(4);
     uBit.radio.enable();
 }
 
 void MicroBitRadioFlashReceiver::Rmain(MicroBit &uBit)
 {   
+    srand(uBit.systemTime());
     while(!transferComplete)
     {
         PacketBuffer p = uBit.radio.datagram.recv();
@@ -165,7 +165,7 @@ void MicroBitRadioFlashReceiver::Rmain(MicroBit &uBit)
         {
             if((p[0] == 120) && isHeaderCheckSumOK(p))
             {
-                // if(uBit.random(4)!=0)
+                // if((rand() % 4)!=0)
                 // {
                     handleSenderPacket(p, uBit);
                     updateLoadingScreen(uBit); // update loading animation
@@ -177,7 +177,7 @@ void MicroBitRadioFlashReceiver::Rmain(MicroBit &uBit)
             {
                 // uBit.serial.send("--Recover EOP--\n\n");
                 pageState = RECOVERY;
-                uBit.sleep(uBit.random(2*R_NAK_WINDOW));
+                uBit.sleep(rand() % (2*R_NAK_WINDOW));
                 readyToNAK = true;
             }   
         }
@@ -195,7 +195,7 @@ void MicroBitRadioFlashReceiver::Rmain(MicroBit &uBit)
         {
             // uBit.serial.send("--Recover timeout--\n\n");
             pageState = RECOVERY;
-            uBit.sleep(uBit.random(2*R_NAK_WINDOW));
+            uBit.sleep(rand() % (2*R_NAK_WINDOW));
             readyToNAK = true;
         }
         
@@ -292,7 +292,9 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
                 uint32_t throughput = ((totalPackets*R_PAYLOAD_SIZE*8000) / total_time);
                 
                 // send stats
-                uint32_t recID = uBit.random(0xFFFFFFFF);
+                
+                srand(uBit.systemTime());
+                uint32_t recID = rand() % 0xFFFFFFFF;
                 uint8_t packet[16] = {0};
 
                 //id
@@ -319,10 +321,11 @@ void MicroBitRadioFlashReceiver::handleSenderPacket(PacketBuffer packet, MicroBi
                 packet[14] = (uint8_t)((total_time >> 8) & 0xFF);
                 packet[15] = (uint8_t)(total_time & 0xFF);
 
-                uBit.sleep(30*R_NAK_WINDOW + uBit.random(R_NAK_WINDOW));
+                uBit.sleep(30*R_NAK_WINDOW + (rand() % R_NAK_WINDOW));
                 PacketBuffer b(packet,16);
                 uBit.radio.datagram.send(b);
-                // uBit.sleep(uBit.random(R_NAK_WINDOW));
+                uBit.serial.send(ManagedString((int)recID));
+                // uBit.sleep(rand() % R_NAK_WINDOW);
                 // uBit.radio.datagram.send(b);
 
                 uBit.sleep(2000);
@@ -348,7 +351,7 @@ void MicroBitRadioFlashReceiver::handleReceiverPacket(PacketBuffer packet, Micro
     {
         // uBit.serial.send("--Recover heard NAK--\n\n");
         pageState = RECOVERY;
-        uBit.sleep(uBit.random(3*R_NAK_WINDOW));
+        uBit.sleep(rand() % (3*R_NAK_WINDOW));
         readyToNAK = true;
     }
         
