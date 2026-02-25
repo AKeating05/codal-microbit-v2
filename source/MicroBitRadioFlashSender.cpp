@@ -154,14 +154,14 @@ void MicroBitRadioFlashSender::Smain(MicroBit &uBit)
             statsTimeout = uBit.systemTime();
             uint32_t recID = ((uint32_t)packet[0]<<24) | ((uint32_t)packet[1]<<16) | ((uint32_t)packet[2]<<8) | ((uint32_t)packet[3]);
             uint32_t nakRounds = ((uint32_t)packet[4]<<24) | ((uint32_t)packet[5]<<16) | ((uint32_t)packet[6]<<8) | ((uint32_t)packet[7]);
-            uint32_t time = ((uint32_t)packet[8]<<24) | ((uint32_t)packet[9]<<16) | ((uint32_t)packet[10]<<8) | ((uint32_t)packet[11]);
-            uint32_t throughput = ((uint32_t)packet[12]<<24) | ((uint32_t)packet[13]<<16) | ((uint32_t)packet[14]<<8) | ((uint32_t)packet[15]);
+            uint32_t throughput = ((uint32_t)packet[8]<<24) | ((uint32_t)packet[9]<<16) | ((uint32_t)packet[10]<<8) | ((uint32_t)packet[11]);
+            uint32_t time = ((uint32_t)packet[12]<<24) | ((uint32_t)packet[13]<<16) | ((uint32_t)packet[14]<<8) | ((uint32_t)packet[15]);
 
-            recStats[recID] = std::make_tuple(nakRounds,time,throughput);
+            recStats[recID] = std::make_tuple(nakRounds,throughput, time);
         }
-        if(uBit.systemTime()-statsTimeout > 100*R_NAK_WINDOW)
+        if(uBit.systemTime()-statsTimeout > 3000*R_NAK_WINDOW)
             break;
-        uBit.sleep(R_SLEEP_TIME);
+        uBit.sleep(R_SLEEP_TIME/2);
     }
     for(auto it : rtts)
     {
@@ -171,15 +171,19 @@ void MicroBitRadioFlashSender::Smain(MicroBit &uBit)
         uBit.serial.send(out);
         uBit.sleep(R_SLEEP_TIME);
     }
+    ManagedString out = ManagedString("NakRounds\n\r");
     for(auto it : recStats)
     {
-        ManagedString out = ManagedString("recID: ") + ManagedString((int)it.first) 
-        + ManagedString(" nakRounds: ") + ManagedString((int)std::get<0>(it.second))
-        + ManagedString(" time: ") + ManagedString((int)std::get<1>(it.second))
-        + ManagedString(" throughput: ") + ManagedString((int)std::get<2>(it.second)) + ManagedString("\n");
-        uBit.serial.send(out);
-        uBit.sleep(R_SLEEP_TIME); 
+        out = out + ManagedString((int)std::get<0>(it.second)) + ManagedString("\n");
+         
     }
+    out = out + ManagedString("\rTimes\n\r");
+    for(auto it : recStats)
+    {
+        out = out + ManagedString((int)std::get<2>(it.second)) + ManagedString("\n");
+    }
+    uBit.serial.send(out);
+    uBit.sleep(R_SLEEP_TIME);
     uBit.display.clear();   
 }
 
@@ -202,7 +206,7 @@ void MicroBitRadioFlashSender::sendEndOfPagePacket(MicroBit &uBit)
     for(uint8_t i = 0; i<3; i++)
     {
         uBit.radio.datagram.send(b);
-        uBit.sleep(R_SLEEP_TIME + (rand() % 5));
+        uBit.sleep(R_SLEEP_TIME + (rand() % 2));
     }
 }
 
@@ -274,7 +278,7 @@ void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq, uint32_t currentPa
     sendTimes[seq] = uBit.systemTime();
     uBit.radio.datagram.send(b);
     
-    uBit.sleep(R_SLEEP_TIME + (rand() % 5));  
+    uBit.sleep(R_SLEEP_TIME + (rand() % 2));  
 }
 
 void MicroBitRadioFlashSender::sendPage(uint16_t npackets, uint32_t currentPage, MicroBit &uBit)

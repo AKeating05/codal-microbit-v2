@@ -23,7 +23,7 @@ DEALINGS IN THE SOFTWARE.
 /**
  * Packet payload size and header size, payload size is configurable
  */
-#define R_PAYLOAD_SIZE 32
+#define R_PAYLOAD_SIZE 128
 #define R_HEADER_SIZE 16
 #define R_FLASH_PAGE_SIZE 4096
 
@@ -34,7 +34,7 @@ DEALINGS IN THE SOFTWARE.
 #define USER_BASE_ADDRESS 0x71000
 #define USER_END_ADDRESS 0x77000
 
-#define R_SLEEP_TIME 10 
+#define R_SLEEP_TIME 1 
 #define R_NAK_WINDOW 3*R_SLEEP_TIME
 
 /**

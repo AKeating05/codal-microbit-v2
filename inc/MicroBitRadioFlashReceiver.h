@@ -44,6 +44,9 @@ class MicroBitRadioFlashReceiver
     uint32_t user_size;
     uint8_t pageBuffer[4096];
 
+    uint32_t recID;
+    uint32_t time;
+
     uint32_t totalPackets;
     uint32_t totalPages;
     uint32_t packetsPerPage;
