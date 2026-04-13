@@ -363,7 +363,7 @@ void MicroBitRadioFlashReceiver::handleReceiverPacket(PacketBuffer packet, Micro
     // + ManagedString("seq: ") + ManagedString((int)seq) + ManagedString("\n") + ManagedString("\n");
     // uBit.serial.send(out);
 
-    receivedNAKs[seq] = true; // add NAK to list of NAKs
+    receivedNAKs[seq] = true; // add NAK to map of NAKs
 }
 
 void MicroBitRadioFlashReceiver::sendNAKs(MicroBit &uBit)
@@ -410,7 +410,4 @@ void MicroBitRadioFlashReceiver::sendNAKs(MicroBit &uBit)
             uBit.sleep(R_SLEEP_TIME);
         }
     }
-
-    // potentially clear NAKs from other receivers after sending to avoid never sending a NAK for a specific packet 
-    // (eg. packet 4 NAKed, sender retransmits, receiver one gets it but receiver 2 doesn't, 2 has seen NAK so will never send one)
 }
