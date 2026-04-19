@@ -306,10 +306,12 @@ int MicroBit::init()
         
         
         #if MICROBIT_ROLE_SENDER
+            #warning "Building SENDER"
             display.scroll("RFS");
             MicroBitRadioFlashSender sender(*this);
             sender.Smain(*this);
         #elif MICROBIT_ROLE_RECEIVER
+            #warning "Building RECEIVER"
             // Rmain will timeout after a period of silence, so if sender has failed, the receiver will automatically reset and begin listening again
             while(1)
             {

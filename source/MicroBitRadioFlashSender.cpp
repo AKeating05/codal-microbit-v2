@@ -29,7 +29,12 @@ DEALINGS IN THE SOFTWARE.
 #include <tuple>
 
 
-
+/**
+ * Calculates checksum for the packet's header and compares with the received checksum inside the packet
+ * 
+ * @param p The packet being checked
+ * @return true if both checksums are the same, false otherwise
+ */
 bool MicroBitRadioFlashSender::isHeaderCheckSumOK(PacketBuffer p)
 {
     uint16_t recSum = ((uint16_t)p[7]<<8) | ((uint16_t)p[8]);
@@ -42,6 +47,10 @@ bool MicroBitRadioFlashSender::isHeaderCheckSumOK(PacketBuffer p)
     return res;
 }
 
+/**
+ * Updates loading animation on display
+ * @param uBit reference to the microbit device
+ */
 void MicroBitRadioFlashSender::updateLoadingScreen(MicroBit &uBit)
 {
     if(!fraction)
@@ -58,6 +67,14 @@ void MicroBitRadioFlashSender::updateLoadingScreen(MicroBit &uBit)
     }
 }
 
+/**
+ * Constructor.
+ * 
+ * Creates an instance of a MicroBitRadioFlashSender which can send its user code
+ * to other MicroBit receivers which can then reflash with the received code
+ * 
+ * @param uBit A reference to the micro:bit object
+ */
 MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit &uBit)
     : uBit(uBit)
 {
@@ -80,13 +97,21 @@ MicroBitRadioFlashSender::MicroBitRadioFlashSender(MicroBit &uBit)
     uBit.radio.enable();
 }
 
-// main sender loop
+/**
+ * Main Sender logic loop.
+ * 
+ * Called to begin cycle of transmitting the sender's user code, listening for NAKs 
+ * from receivers and retransmitting
+ * 
+ * @param uBit A reference to the micro:bit object
+ */
 void MicroBitRadioFlashSender::Smain(MicroBit &uBit)
 {
     srand(uBit.systemTime());
     for(uint32_t currentPage = 1; currentPage <=totalPages; currentPage++)
     {
         // uBit.serial.send("---Sending page---\n\n");
+
         // clear NAKs at each new page
         receivedNAKs.clear();
 
@@ -101,9 +126,10 @@ void MicroBitRadioFlashSender::Smain(MicroBit &uBit)
             sendPage(packetsPerPage, currentPage, uBit);
 
         sendEndOfPagePacket(uBit);
-        // listen and process packet every 10ms if received
+
+        // listen and process NAK packet every ms if received
         NAKTimeout = uBit.systemTime();
-        uint32_t emptyRound = 0;
+        uint32_t emptyRound = 0; //count the number of rounds without hearing any NAKs
         while(true)
         {
             PacketBuffer p = uBit.radio.datagram.recv();
@@ -116,25 +142,26 @@ void MicroBitRadioFlashSender::Smain(MicroBit &uBit)
                     handleNAK(p, currentPage, uBit);
                 }
             }
-            // only exit after n empty rounds
-            if(receivedNAKs.empty() && (uBit.systemTime()-NAKTimeout)>(2*R_NAK_WINDOW)) //if no NAKs and time since last NAK is greater than x, exit listening
+            
+            if(receivedNAKs.empty() && (uBit.systemTime()-NAKTimeout)>(2*R_NAK_WINDOW)) //if no NAKs and time since last NAK is greater than 2*window, count empty round
             {
                 // uBit.serial.send("---Empty---\n\n");
                 emptyRound++;
                 NAKTimeout = uBit.systemTime();
             }
                 
-            if(!receivedNAKs.empty() && (uBit.systemTime()-NAKTimeout)>(R_NAK_WINDOW)) //if time since last NAK greater than y, retransmit packets
+            if(!receivedNAKs.empty() && (uBit.systemTime()-NAKTimeout)>(R_NAK_WINDOW)) //if there are NAKs and time since last NAK received is greater than window, retransmit
             {
                 // uBit.serial.send("---Retransmit---\n\n");
                 emptyRound = 0;
                 NAKTimeout = uBit.systemTime();
+                //retransmit
                 for(auto seq : receivedNAKs)
                     sendSinglePacket(seq, currentPage, uBit);
                 receivedNAKs.clear();
                 sendEndOfPagePacket(uBit);
             }
-            if(emptyRound>5)
+            if(emptyRound>5) // Exit after five empty rounds
             {
                 // uBit.serial.send("---Exit listening for NAKs---\n\n");
                 break;
@@ -163,6 +190,7 @@ void MicroBitRadioFlashSender::Smain(MicroBit &uBit)
             break;
         uBit.sleep(R_SLEEP_TIME/2);
     }
+    //print stats from receivers over serial
     for(auto it : rtts)
     {
         ManagedString out = ManagedString("seq: ") + ManagedString((int)it.first.first) 
@@ -190,10 +218,12 @@ void MicroBitRadioFlashSender::Smain(MicroBit &uBit)
 void MicroBitRadioFlashSender::sendEndOfPagePacket(MicroBit &uBit)
 {
     // uBit.serial.send("---End of page---\n\n");
-    // uBit.sleep(R_SLEEP_TIME*3);
+    
     uint8_t packet[R_HEADER_SIZE] = {0};
+    //packet ID (122 for end of page packet)
     packet[0] = 122;
 
+    //header checksum
     uint16_t hsum = 0;
     for(uint32_t i = 0; i<7; i++)
     {
@@ -202,6 +232,7 @@ void MicroBitRadioFlashSender::sendEndOfPagePacket(MicroBit &uBit)
     packet[7] = (uint8_t)((hsum >> 8) & 0xFF);
     packet[8] = (uint8_t)(hsum & 0xFF);
 
+    //send three end of page packets, staggered
     PacketBuffer b(packet,R_HEADER_SIZE);
     for(uint8_t i = 0; i<3; i++)
     {
@@ -275,14 +306,16 @@ void MicroBitRadioFlashSender::sendSinglePacket(uint16_t seq, uint32_t currentPa
     // + ManagedString("header checksum: ") + ManagedString((int)((uint16_t)packet[7]<<8) | ((uint16_t)packet[8])) + ManagedString("\n")
     // + ManagedString("data checksum: ") + ManagedString((int)((uint16_t)packet[9]<<8) | ((uint16_t)packet[10])) + ManagedString("\n") + ManagedString("\n");
     // uBit.serial.send(out);
-    sendTimes[seq] = uBit.systemTime();
-    uBit.radio.datagram.send(b);
+    
+    sendTimes[seq] = uBit.systemTime(); //record time sent for round trip time estimate
+    uBit.radio.datagram.send(b); //send packet
     
     uBit.sleep(R_SLEEP_TIME + (rand() % 2));  
 }
 
 void MicroBitRadioFlashSender::sendPage(uint16_t npackets, uint32_t currentPage, MicroBit &uBit)
 {
+    //send all packets in a page and update loading screen
     for(uint16_t i = 1; i<=npackets; i++)
     {
         sendSinglePacket(i, currentPage, uBit);
@@ -298,19 +331,21 @@ void MicroBitRadioFlashSender::handleNAK(PacketBuffer p, uint32_t currentPage, M
     // +---------------------------------------------------------------------------+
     // | ID | Seq of packet for retransmit | Page # | Padding | Checksum | Padding |
     // +---------------------------------------------------------------------------+
-    uint8_t id = p[0];
+
+    //extract NAK packet info
+    // uint8_t id = p[0];
     uint16_t seq = ((uint16_t)p[1]<<8) | ((uint16_t)p[2]);
     uint16_t page = ((uint16_t)p[3]<<8) | ((uint16_t)p[4]);
 
     std::pair<uint16_t,uint16_t> seqPage = {seq,page};
     rtts[seqPage] = uBit.systemTime() - sendTimes[seq]; //record rtt for NAKed packet
-    uint16_t pageN = ((uint16_t)p[3]<<8) | ((uint16_t)p[4]);
 
+    uint16_t pageN = ((uint16_t)p[3]<<8) | ((uint16_t)p[4]);
     // only accept NAKs for the current page
     if(pageN!=currentPage)
         return;
 
     // uBit.serial.send(ManagedString("FOO\n"));
 
-    receivedNAKs.insert(seq);
+    receivedNAKs.insert(seq); //record NAK
 }

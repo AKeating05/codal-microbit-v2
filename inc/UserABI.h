@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 
+//function pointer table
 struct UserABI
 {
     void (*scroll)(const char *);

@@ -34,7 +34,7 @@ DEALINGS IN THE SOFTWARE.
 
 using namespace codal;
 
-#warning "Building with AK CODAL"
+#warning "Building with AKeating CODAL"
 static char friendly_name[MICROBIT_NAME_LENGTH+1];
 
 // internal reference to any created instance of the class - used purely for convenience functions.

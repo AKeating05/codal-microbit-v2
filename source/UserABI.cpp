@@ -3,6 +3,7 @@
 
 static MicroBit *_uBit;
 
+//function pointer implementations
 static void abi_scroll(const char *s)
 {
     _uBit->display.scroll(s);

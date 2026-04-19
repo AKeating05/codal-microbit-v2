@@ -34,7 +34,14 @@ DEALINGS IN THE SOFTWARE.
 #define USER_BASE_ADDRESS 0x71000
 #define USER_END_ADDRESS 0x77000
 
-#define R_SLEEP_TIME 1 
+#define R_SLEEP_TIME 1 //delay between listening cycle in sender/receiver loop
+
+/**
+ * Time used to stagger NAK sending and turn based listening behaviour
+ * Note: With current calibrated values, this performs well with up to 27 receivers, however packet collisions occur
+ * as the range of the randomised backoff is to small
+ * To improve the protocol performance this value should scale with the number of receivers
+ */
 #define R_NAK_WINDOW 3*R_SLEEP_TIME
 
 /**

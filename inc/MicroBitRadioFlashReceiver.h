@@ -53,13 +53,12 @@ class MicroBitRadioFlashReceiver
     private:
     MicroBit &uBit; //reference to the microbit device
 
-    // uint32_t user_start;
-    // uint32_t user_end;
-    // uint32_t user_size;
-    uint8_t pageBuffer[MICROBIT_CODEPAGESIZE]; //buffer of one page of program data (protocol supports multipage programs so each page is buffered at a time)
+    uint8_t pageBuffer[R_FLASH_PAGE_SIZE]; //buffer of one page of program data (protocol supports multipage programs so each page is buffered at a time)
 
     uint32_t recID; //unique ID used for performance data collection
     uint32_t time; //counter since boot, incremented every R_SLEEP_TIME/2, used as unique ID
+    uint32_t nakRounds; //number of NAK rounds performed, used in stats collection
+    uint32_t start_time; //system time at start of transfer (first packet received)
 
     uint32_t totalPackets; //total number of packets in this transfer, determined by field in header of received packet
     uint32_t totalPages; //total number of pages in this transfer, determined by field in header of received packet
@@ -77,15 +76,12 @@ class MicroBitRadioFlashReceiver
     }PageState;
     volatile PageState pageState;
 
-    volatile bool transferComplete; //
+    volatile bool transferComplete; //flag for completion of transfer
     uint16_t currentPage; //current page number
     uint16_t lastSeqN; //sequence number of last data packet correctly received
-    uint32_t lastRxTime; //
-    uint32_t lastNAKTime;
-    bool readyToNAK;
-    uint32_t nakRounds;
+    uint32_t lastRxTime; //last time a packet was received
+    bool readyToNAK; //flag used to enter NAK round, used so priority is given to receiving packets over sending NAKs
 
-    uint32_t start_time; //system time at start of transfer (first packet received)
 
     uint8_t xPixel; //x coordinate of screen loading animation
     uint8_t yPixel; //y coordinate of screen loading animation
@@ -125,6 +121,10 @@ class MicroBitRadioFlashReceiver
      */
     bool isHeaderCheckSumOK(PacketBuffer p);
 
+    /**
+     * Updates loading animation on display
+     * @param uBit reference to the microbit device
+     */
     void updateLoadingScreen(MicroBit &uBit);
 
     /**
@@ -146,9 +146,19 @@ class MicroBitRadioFlashReceiver
     void eraseAllUserPages();
 
     /**
-     * 
+     * Send NAKs for packets which haven't been received and for which no NAK
+     * has been detected from another receiver
+     * @param uBit reference to the microbit device 
      */
     void sendNAKs(MicroBit &uBit);
+
+    /**
+     * Diagnostic for debugging which prints packetMap and receivedNAKs over serial,
+     * caution, serial is relatively slow, so depending on the value of R_SLEEP_TIME
+     * may not print accurately
+     * 
+     * @param uBit reference to the microbit device
+     */
     void printInfo(MicroBit &uBit);
     
 };

@@ -36,6 +36,27 @@ namespace codal
      */
     class MicroBitRadioFlashSender
     {
+        public:
+        /**
+         * Constructor.
+         * 
+         * Creates an instance of a MicroBitRadioFlashSender which can send its user code
+         * to other MicroBit receivers which can then reflash with the received code
+         * 
+         * @param uBit A reference to the micro:bit object
+         */
+        MicroBitRadioFlashSender(MicroBit &uBit);
+
+        /**
+         * Main Sender logic loop.
+         * 
+         * Called to begin cycle of transmitting the sender's user code, listening for NAKs 
+         * from receivers and retransmitting
+         * 
+         * @param uBit A reference to the micro:bit object
+         */
+        void Smain(MicroBit &uBit);
+        
         private:
         MicroBit uBit; //reference to the microbit device
 
@@ -47,16 +68,17 @@ namespace codal
         uint32_t packetsPerPage; //number of packets sent per page
         uint32_t totalPages; //total number of pages
 
-        uint32_t NAKTimeout;
+        uint32_t NAKTimeout; //time last NAK was received
         
-        std::set<uint16_t> receivedNAKs;
-        std::map<uint16_t, uint32_t> sendTimes;
-        std::map<std::pair<uint16_t,uint16_t>, uint32_t> rtts;
+        std::set<uint16_t> receivedNAKs; //data structure for tracking NAKs from receivers
+        std::map<uint16_t, uint32_t> sendTimes; //data structure for times packets were sent, used for RTT stats calculation in evaluation
+        std::map<std::pair<uint16_t,uint16_t>, uint32_t> rtts; // data structure for rtts, <<sequence number, page number>, rtt>
 
-        uint32_t packetsSent;
-        uint8_t xPixel;
-        uint8_t yPixel;
-        uint32_t fraction;
+        //loading screen animation
+        uint32_t packetsSent; //number of packets sent
+        uint8_t xPixel; //x coordinate of screen loading animation
+        uint8_t yPixel; //y coordinate of screen loading animation
+        uint32_t fraction; //total packets / number of screen pixels (25)
 
         /**
          * Calculates checksum for the packet's header and compares with the received checksum inside the packet
@@ -66,6 +88,10 @@ namespace codal
          */
         bool isHeaderCheckSumOK(PacketBuffer p);
 
+        /**
+         * Updates loading animation on display
+         * @param uBit reference to the microbit device
+         */
         void updateLoadingScreen(MicroBit &uBit);
 
         /**
@@ -95,7 +121,12 @@ namespace codal
          */
         void sendPage(uint16_t npackets, uint32_t currentPage, MicroBit &uBit);
 
+        /**
+         * Send packet signalling end of page transmission
+         * @param uBit reference to the microbit device
+         */
         void sendEndOfPagePacket(MicroBit &uBit);
+
         /**
          * Parses a NAK from a receiver Microbit and adds its sequence number to a list of NAKs used for retransmission
          * 
@@ -110,27 +141,6 @@ namespace codal
          * @param uBit reference to the microbit device
          */
         void handleNAK(PacketBuffer p, uint32_t currentPage, MicroBit &uBit);
-
-        public:
-        /**
-         * Constructor.
-         * 
-         * Creates an instance of a MicroBitRadioFlashSender which can send its user code
-         * to other MicroBit receivers which can then reflash with the received code
-         * 
-         * @param uBit A reference to the micro:bit object
-         */
-        MicroBitRadioFlashSender(MicroBit &uBit);
-
-        /**
-         * Main Sender logic loop.
-         * 
-         * Called to begin cycle of transmitting the sender's user code, listening for NAKs 
-         * from receivers and retransmitting
-         * 
-         * @param uBit A reference to the micro:bit object
-         */
-        void Smain(MicroBit &uBit);
 
     };
 
